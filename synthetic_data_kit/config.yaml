@@ -10,6 +10,7 @@ paths:
     docx: "data/docx"
     ppt: "data/ppt"
     txt: "data/txt"
+    default: "data/input"
   
   # Output locations
   output:
@@ -17,14 +18,25 @@ paths:
     generated: "data/generated" # Where generated content is saved
     cleaned: "data/cleaned"     # Where cleaned content is saved
     final: "data/final"         # Where final formatted content is saved
+    default: "data/output"
 
-# VLLM server configuration
+# LLM Backend Configuration
+backend: "vllm"  # Options: "vllm" or "ollama"
+
+# VLLM Configuration
 vllm:
-  api_base: "http://localhost:8000/v1" # Base URL for VLLM API
-  port: 8000                           # Port for VLLM server
-  model: "meta-llama/Llama-3.3-70B-Instruct" # Default model to use
-  max_retries: 3                       # Number of retries for API calls
-  retry_delay: 1.0                     # Initial delay between retries (seconds)
+  api_base: "http://localhost:8000/v1"
+  port: 8000
+  model: "meta-llama/Llama-3.3-70B-Instruct"
+  max_retries: 3
+  retry_delay: 1.0
+
+# Ollama Configuration
+ollama:
+  api_base: "http://localhost:11434/v1"
+  model: "llama3.2"
+  max_retries: 3
+  retry_delay: 1.0
 
 # Ingest configuration
 ingest:
@@ -44,7 +56,7 @@ generation:
 # Content curation parameters
 curate:
   threshold: 7.0     # Default quality threshold (1-10)
-  batch_size: 32     # Number of items per batch for rating
+  batch_size: 8      # Number of items per batch for rating
   inference_batch: 32 # Number of batches to process at once with VLLM
   temperature: 0.1   # Temperature for rating (lower = more consistent)
 

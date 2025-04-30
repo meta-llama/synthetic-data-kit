@@ -17,8 +17,7 @@ def process_file(
     file_path: str,
     output_dir: str,
     config_path: Optional[Path] = None,
-    api_base: Optional[str] = None,
-    model: Optional[str] = None,
+    llm_client: Optional[LLMClient] = None,
     content_type: str = "qa",
     num_pairs: Optional[int] = None,
     verbose: bool = False,
@@ -29,29 +28,23 @@ def process_file(
         file_path: Path to the text file to process
         output_dir: Directory to save generated content
         config_path: Path to configuration file
-        api_base: VLLM API base URL
-        model: Model to use
+        llm_client: Initialized LLMClient instance
         content_type: Type of content to generate (qa, summary, cot)
         num_pairs: Target number of QA pairs to generate
-        threshold: Quality threshold for filtering (1-10)
+        verbose: Whether to show detailed output
     
     Returns:
         Path to the output file
     """
     # Create output directory if it doesn't exist
-    # The reason for having this directory logic for now is explained in context.py
     os.makedirs(output_dir, exist_ok=True)
     
     # Read the file
     with open(file_path, 'r', encoding='utf-8') as f:
         document_text = f.read()
     
-    # Initialize LLM client
-    client = LLMClient(
-        config_path=config_path,
-        api_base=api_base,
-        model_name=model
-    )
+    # Use provided client or create new one
+    client = llm_client or LLMClient(config_path=config_path)
     
     # Generate base filename for output
     base_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -75,24 +68,11 @@ def process_file(
         
         # Save output
         output_path = os.path.join(output_dir, f"{base_name}_qa_pairs.json")
-        print(f"Saving result to {output_path}")
+        if verbose:
+            print(f"Saving result to {output_path}")
         
-        # First, let's save a basic test file to confirm the directory is writable
-        test_path = os.path.join(output_dir, "test_write.json")
-        try:
-            with open(test_path, 'w', encoding='utf-8') as f:
-                f.write('{"test": "data"}')
-            print(f"Successfully wrote test file to {test_path}")
-        except Exception as e:
-            print(f"Error writing test file: {e}")
-            
-        # Now save the actual result
-        try:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(result, f, indent=2)
-            print(f"Successfully wrote result to {output_path}")
-        except Exception as e:
-            print(f"Error writing result file: {e}")
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2)
         
         return output_path
     
@@ -108,10 +88,6 @@ def process_file(
             json.dump({"summary": summary}, f, indent=2)
         
         return output_path
-    
-    # So there are two separate categories of CoT
-    # Simply CoT maps to "Hey I want CoT being generated"
-    # CoT-enhance maps to "Please enhance my dataset with CoT"
     
     elif content_type == "cot":
         from synthetic_data_kit.generators.cot_generator import COTGenerator
@@ -198,32 +174,26 @@ def process_file(
                     # Enhance this conversation's messages
                     enhanced_messages = generator.enhance_with_cot(conv_messages, include_simple_steps=verbose)
                     
-                    # Create enhanced conversation with same structure
+                    # Create enhanced conversation object
                     enhanced_conv = conversation.copy()
                     enhanced_conv["conversations"] = enhanced_messages
                     enhanced_conversations.append(enhanced_conv)
                 else:
-                    # Not the expected format, just keep original
-                    enhanced_conversations.append(conversation)
+                    print(f"Warning: item {i} does not have a conversations field, skipping")
+                    enhanced_conversations.append(conversation)  # Keep original
             
-            # Save enhanced conversations
+            # Save output
             output_path = os.path.join(output_dir, f"{base_name}_enhanced.json")
-            
             with open(output_path, 'w', encoding='utf-8') as f:
-                if is_single_conversation and len(enhanced_conversations) == 1:
-                    # Save the single conversation
+                if is_single_conversation:
                     json.dump(enhanced_conversations[0], f, indent=2)
                 else:
-                    # Save the array of conversations
                     json.dump(enhanced_conversations, f, indent=2)
             
-            if verbose:
-                print(f"Enhanced {len(enhanced_conversations)} conversation(s)")
-                
             return output_path
             
-        except json.JSONDecodeError:
-            raise ValueError(f"Failed to parse {file_path} as JSON. For cot-enhance, input must be a valid JSON file.")
+        except json.JSONDecodeError as e:
+            raise ValueError(f"Invalid JSON file: {e}")
     
     else:
-        raise ValueError(f"Unknown content type: {content_type}")
+        raise ValueError(f"Unsupported content type: {content_type}")

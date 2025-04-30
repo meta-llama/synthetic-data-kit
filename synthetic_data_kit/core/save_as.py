@@ -10,15 +10,17 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
+from synthetic_data_kit.models.llm_client import LLMClient
 from synthetic_data_kit.utils.format_converter import to_jsonl, to_alpaca, to_fine_tuning, to_chatml, to_hf_dataset
 from synthetic_data_kit.utils.llm_processing import convert_to_conversation_format
 
-def convert_format(
+def process_file(
     input_path: str,
     output_path: str,
     format_type: str,
-    config: Optional[Dict[str, Any]] = None,
-    storage_format: str = "json",
+    storage_format: str,
+    config_path: Optional[Path] = None,
+    llm_client: Optional[LLMClient] = None,
 ) -> str:
     """Convert data to different formats
     
@@ -26,8 +28,9 @@ def convert_format(
         input_path: Path to the input file
         output_path: Path to save the output
         format_type: Output format (jsonl, alpaca, ft, chatml)
-        config: Configuration dictionary
         storage_format: Storage format, either "json" or "hf" (Hugging Face dataset)
+        config_path: Path to configuration file
+        llm_client: Initialized LLMClient instance
     
     Returns:
         Path to the output file or directory
