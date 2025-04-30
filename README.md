@@ -16,7 +16,9 @@ Multiple tools support standardised formats. However, most of the times your dat
 
 This toolkit simplifies the journey of:
 
-- Using local LLM (via vLLM) to generate examples
+- Using local LLMs via multiple backends:
+  - vLLM for high-performance inference
+  - Ollama for easy model management and deployment
 - Modular 4 command flow
 - Converting your existing files to fine-tuning friendly formats
 - Creating synthetic datasets
@@ -28,11 +30,10 @@ The tool is designed to follow a simple CLI structure with 4 commands:
 
 - `ingest` various file formats
 - `create` your fine-tuning format: `QA` pairs, `QA` pairs with CoT, `summary` format
-- `curate`: Using Llama as a judge to curate high quality examples. 
-- `save-as`: After that you can simply save these to a format that your fine-tuning workflow requires.
+- `curate`: Using LLMs as judges to curate high quality examples
+- `save-as`: After that you can simply save these to a format that your fine-tuning workflow requires
 
 You can override any parameter or detail by either using the CLI or overiding the default YAML config.
-
 
 ### Installation
 
@@ -40,11 +41,8 @@ You can override any parameter or detail by either using the CLI or overiding th
 
 ```bash
 # Create a new environment
-
 conda create -n synthetic-data python=3.10 
-
 conda activate synthetic-data
-
 pip install synthetic-data-kit
 ```
 
@@ -57,44 +55,50 @@ pip install -e .
 ```
 
 To get an overview of commands type: 
-
 `synthetic-data-kit --help`
 
 ### 1. Tool Setup
 
 - The tool expects respective files to be put in named folders.
-- We also require a vLLM server running the LLM that we will utilise for generating our dataset.
+- We support two LLM backends:
+  - vLLM server for high-performance inference
+  - Ollama for easy model management
 
 ```bash
 # Create directory structure
 mkdir -p data/{pdf,html,youtube,docx,ppt,txt,output,generated,cleaned,final}
 
-# Start VLLM server
+# Option 1: Start VLLM server
 # Note you will need to grab your HF Authentication from: https://huggingface.co/settings/tokens
 vllm serve meta-llama/Llama-3.3-70B-Instruct --port 8000
+
+# Option 2: Use Ollama
+# Install Ollama from https://ollama.ai
+ollama serve
+# Pull your desired model
+ollama pull llama3.2
 ```
 
 ### 2. Usage
 
-The flow follows 4 simple steps: `ingest`, `create`, `curate`, `save-as`, please paste your file into the respective folder:
+The flow follows 4 simple steps: `ingest`, `create`, `curate`, `save-as`. Please paste your file into the respective folder:
 
 ```bash
-# Check if VLLM server is running
-synthetic-data-kit system-check
+# Check if server is running (specify backend)
+synthetic-data-kit system-check --backend vllm
+# OR
+synthetic-data-kit system-check --backend ollama
 
 # Parse a document to text
 synthetic-data-kit ingest docs/report.pdf
-# This will save file to data/output/report.txt
 
-# Generate QA pairs (default)
-synthetic-data-kit create data/output/report.txt --type qa
-
-OR 
+# Generate QA pairs (default) with specific backend
+synthetic-data-kit create data/output/report.txt --type qa --backend vllm
+# OR
+synthetic-data-kit create data/output/report.txt --type qa --backend ollama
 
 # Generate Chain of Thought (CoT) reasoning examples
-synthetic-data-kit create data/output/report.txt --type cot
-
-# Both of these will save file to data/generated/report_qa_pairs.json
+synthetic-data-kit create data/output/report.txt --type cot --backend ollama
 
 # Filter content based on quality
 synthetic-data-kit curate data/generated/report_qa_pairs.json
@@ -102,17 +106,25 @@ synthetic-data-kit curate data/generated/report_qa_pairs.json
 # Convert to alpaca fine-tuning format and save as HF arrow file
 synthetic-data-kit save-as data/cleaned/report_cleaned.json --format alpaca --storage hf
 ```
+
 ## Configuration
 
 The toolkit uses a YAML configuration file (default: `configs/config.yaml`).
-
-Note, this can be overriden via either CLI arguments OR passing a custom YAML file
+Note, this can be overriden via either CLI arguments OR passing a custom YAML file.
 
 ```yaml
 # Example configuration
+backend: "vllm"  # or "ollama"
+
 vllm:
   api_base: "http://localhost:8000/v1"
   model: "meta-llama/Llama-3.3-70B-Instruct"
+
+ollama:
+  api_base: "http://localhost:11434/v1"
+  model: "llama3.2"
+  max_retries: 3
+  retry_delay: 1.0
 
 generation:
   temperature: 0.7
@@ -134,44 +146,41 @@ synthetic-data-kit -c my_config.yaml ingest docs/paper.pdf
 
 ## Examples
 
-### Processing a PDF Document
+### Processing a PDF Document with Ollama
 
 ```bash
 # Ingest PDF
 synthetic-data-kit ingest research_paper.pdf
 
-# Generate QA pairs
-synthetic-data-kit create data/output/research_paper.txt -n 30 --threshold 8.0
+# Generate QA pairs using Ollama
+synthetic-data-kit create data/output/research_paper.txt -n 30 --backend ollama --model llama3.2
 
 # Curate data
-synthetic-data-kit curate data/generated/research_paper_qa_pairs.json -t 8.5
+synthetic-data-kit curate data/cleaned/research_paper_qa_pairs.json -t 8.5
 
 # Save in OpenAI fine-tuning format (JSON)
 synthetic-data-kit save-as data/cleaned/research_paper_cleaned.json -f ft
-
-# Save in OpenAI fine-tuning format (HF dataset)
-synthetic-data-kit save-as data/cleaned/research_paper_cleaned.json -f ft --storage hf
 ```
 
-### Processing a YouTube Video
+### Processing a YouTube Video with vLLM
 
 ```bash
 # Extract transcript
 synthetic-data-kit ingest "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
-# Generate QA pairs with specific model
-synthetic-data-kit create data/output/youtube_dQw4w9WgXcQ.txt
+# Generate QA pairs with vLLM
+synthetic-data-kit create data/output/youtube_dQw4w9WgXcQ.txt --backend vllm
 ```
 
 ### Processing Multiple Files
 
 ```bash
-# Bash script to process multiple files
+# Bash script to process multiple files with Ollama
 for file in data/pdf/*.pdf; do
   filename=$(basename "$file" .pdf)
   
   synthetic-data-kit ingest "$file"
-  synthetic-data-kit create "data/output/${filename}.txt" -n 20
+  synthetic-data-kit create "data/output/${filename}.txt" -n 20 --backend ollama
   synthetic-data-kit curate "data/generated/${filename}_qa_pairs.json" -t 7.5
   synthetic-data-kit save-as "data/cleaned/${filename}_cleaned.json" -f chatml
 done
@@ -218,10 +227,12 @@ graph LR
     SDK --> Curate[curate]
     SDK --> SaveAs[save-as]
     
+    SystemCheck --> VLLM[vLLM Backend]
+    SystemCheck --> Ollama[Ollama Backend]
+    
     Ingest --> PDFFile[PDF File]
     Ingest --> HTMLFile[HTML File]
     Ingest --> YouTubeURL[File Format]
-
     
     Create --> CoT[CoT]
     Create --> QA[QA Pairs]
@@ -237,18 +248,27 @@ graph LR
 
 ## Troubleshooting FAQs:
 
-### VLLM Server Issues
+### Backend Issues
 
+#### VLLM Server
 - Ensure VLLM is installed: `pip install vllm`
 - Start server with: `vllm serve <model_name> --port 8000`
-- Check connection: `synthetic-data-kit system-check`
+- Check connection: `synthetic-data-kit system-check --backend vllm`
+
+#### Ollama Server
+- Install Ollama from https://ollama.ai
+- Start server with: `ollama serve`
+- Pull models with: `ollama pull <model_name>`
+- Check connection: `synthetic-data-kit system-check --backend ollama`
+- List available models: `synthetic-data-kit system-check --backend ollama`
 
 ### Memory Issues
 
 If you encounter CUDA out of memory errors:
 - Use a smaller model
 - Reduce batch size in config
-- Start VLLM with `--gpu-memory-utilization 0.85`
+- For vLLM: Start with `--gpu-memory-utilization 0.85`
+- For Ollama: Use smaller model variants (e.g., llama3:7b instead of llama3:70b)
 
 ### JSON Parsing Issues
 

@@ -15,13 +15,12 @@ from synthetic_data_kit.generators.qa_generator import QAGenerator
 from synthetic_data_kit.utils.config import get_curate_config, get_prompt
 from synthetic_data_kit.utils.llm_processing import convert_to_conversation_format, parse_ratings
 
-def curate_qa_pairs(
+def process_file(
     input_path: str,
     output_path: str,
-    threshold: Optional[float] = None,
-    api_base: Optional[str] = None,
-    model: Optional[str] = None,
     config_path: Optional[Path] = None,
+    llm_client: Optional[LLMClient] = None,
+    threshold: Optional[float] = None,
     verbose: bool = False,
 ) -> str:
     """Clean and filter QA pairs based on quality ratings
@@ -29,16 +28,15 @@ def curate_qa_pairs(
     Args:
         input_path: Path to the input file with QA pairs
         output_path: Path to save the cleaned output
-        threshold: Quality threshold (1-10)
-        api_base: VLLM API base URL
-        model: Model to use
         config_path: Path to configuration file
+        llm_client: Initialized LLMClient instance
+        threshold: Quality threshold (1-10)
         verbose: Show detailed output
     
     Returns:
         Path to the cleaned output file
     """
-    # Set verbose either via CLI or via env variable. If its via CLI, set it to env variable
+    # Set verbose either via CLI or via env variable
     if verbose:
         os.environ['SDK_VERBOSE'] = 'true'
     else:
@@ -56,12 +54,8 @@ def curate_qa_pairs(
     if not qa_pairs:
         raise ValueError("No QA pairs found in the input file")
     
-    # Initialize LLM client
-    client = LLMClient(
-        config_path=config_path,
-        api_base=api_base,
-        model_name=model
-    )
+    # Use provided client or create new one
+    client = llm_client or LLMClient(config_path=config_path)
     
     # Get threshold from args, then config, then default
     if threshold is None:
@@ -114,8 +108,7 @@ def curate_qa_pairs(
     total_evaluated = 0
     total_passed = 0
     
-    # Process batches with simple progress indicator rather than a detailed bar
-    # This avoids conflicts with other output messages
+    # Process batches with simple progress indicator
     print(f"Processing {len(batches)} batches of QA pairs...")
     
     # Only use detailed progress bar in verbose mode
@@ -198,91 +191,64 @@ def curate_qa_pairs(
                         
                         # Try processing one pair at a time as a fallback
                         try:
-                            if verbose:
-                                print("Attempting to process items individually...")
-                            
-                            for item in original_batch:
-                                item_json = json.dumps(item, indent=2)
-                                rating_prompt = rating_prompt_template.format(pairs=item_json)
-                                item_response = client.chat_completion(
-                                    [{"role": "system", "content": rating_prompt}],
+                            for pair in original_batch:
+                                single_batch = [pair]
+                                single_json = json.dumps(single_batch, indent=2)
+                                single_prompt = rating_prompt_template.format(pairs=single_json)
+                                single_messages = [{"role": "system", "content": single_prompt}]
+                                
+                                single_response = client.chat_completion(
+                                    single_messages,
                                     temperature=rating_temperature
                                 )
-                                try:
-                                    # This should be a single item
-                                    rated_item = parse_ratings(item_response, [item])
-                                    if rated_item and len(rated_item) > 0:
-                                        pair = rated_item[0]
-                                        if "rating" in pair:
-                                            rating = pair["rating"]
-                                            total_score += rating
-                                            total_evaluated += 1
-                                            
-                                            if rating >= threshold:
-                                                filtered_pairs.append(pair)
-                                                total_passed += 1
-                                                if verbose:
-                                                    print(f"Successfully processed individual item with rating {rating}")
-                                except Exception as inner_e:
-                                    if verbose:
-                                        print(f"Failed to process individual item: {str(inner_e)}")
-                        except Exception as fallback_e:
+                                
+                                rated_pair = parse_ratings(single_response, single_batch)[0]
+                                if "rating" in rated_pair:
+                                    rating = rated_pair["rating"]
+                                    total_score += rating
+                                    total_evaluated += 1
+                                    
+                                    if rating >= threshold:
+                                        filtered_pairs.append(rated_pair)
+                                        total_passed += 1
+                        except Exception as e2:
                             if verbose:
-                                print(f"Fallback processing failed: {str(fallback_e)}")
-                            
-                        # Continue processing other batches rather than failing completely
-                        pass
+                                print(f"Error in fallback processing: {str(e2)}")
             
-            # Update progress bar if in verbose mode
+            # Update progress
             if progress_ctx and rate_task:
                 progress_ctx.update(rate_task, advance=current_batch_size)
-            
+        
         except Exception as e:
             if verbose:
-                print(f"Error processing inference batch {batch_num}: {str(e)}")
-            
-            # Update progress bar if in verbose mode
-            if progress_ctx and rate_task:
-                progress_ctx.update(rate_task, advance=current_batch_size)
+                print(f"Error processing batch: {str(e)}")
+            continue
     
-    # Stop progress bar if in verbose mode
+    # Close progress bar if used
     if progress_ctx:
         progress_ctx.stop()
     
-    # Clear the progress line in non-verbose mode
-    if not verbose:
-        print(" " * 80, end="\r")
-        print("Batch processing complete.")
+    # Print summary
+    if total_evaluated > 0:
+        avg_score = total_score / total_evaluated
+        pass_rate = (total_passed / total_evaluated) * 100
+        print(f"\nProcessed {total_evaluated} QA pairs")
+        print(f"Average quality score: {avg_score:.2f}")
+        print(f"Pass rate: {pass_rate:.1f}% ({total_passed} pairs above threshold {threshold})")
     
-    # Calculate metrics
-    metrics = {
-        "total": len(qa_pairs),
-        "filtered": len(filtered_pairs),
-        "retention_rate": round(len(filtered_pairs) / len(qa_pairs), 2) if qa_pairs else 0,
-        "avg_score": round(total_score / total_evaluated, 1) if total_evaluated else 0
-    }
-    
-    # Always print basic stats, even in non-verbose mode
-    print(f"Rated {total_evaluated} QA pairs")
-    print(f"Retained {total_passed} pairs (threshold: {threshold})")
-    print(f"Average score: {metrics['avg_score']}")
-    
-    # Convert to conversation format
-    conversations = convert_to_conversation_format(filtered_pairs)
-    
-    # Create result with filtered pairs
-    result = {
-        "summary": summary,
+    # Save filtered pairs
+    output_data = {
         "qa_pairs": filtered_pairs,
-        "conversations": conversations,
-        "metrics": metrics
+        "summary": summary,
+        "metadata": {
+            "total_evaluated": total_evaluated,
+            "total_passed": total_passed,
+            "average_score": avg_score if total_evaluated > 0 else 0,
+            "threshold": threshold
+        }
     }
     
-    # Ensure output directory exists
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    
-    # Save result
     with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(result, f, indent=2)
+        json.dump(output_data, f, indent=2)
     
     return output_path

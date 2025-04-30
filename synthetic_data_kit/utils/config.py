@@ -60,12 +60,25 @@ def get_path_config(config: Dict[str, Any], path_type: str, file_type: Optional[
     else:
         raise ValueError(f"Unknown path type: {path_type}")
 
+def get_backend_type(config: Dict[str, Any]) -> str:
+    """Get the LLM backend type from configuration"""
+    return config.get('backend', 'vllm')
+
 def get_vllm_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Get VLLM configuration"""
     return config.get('vllm', {
         'api_base': 'http://localhost:8000/v1',
         'port': 8000,
         'model': 'meta-llama/Llama-3.3-70B-Instruct',
+        'max_retries': 3,
+        'retry_delay': 1.0
+    })
+
+def get_ollama_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get Ollama configuration"""
+    return config.get('ollama', {
+        'api_base': 'http://localhost:11434/v1',
+        'model': 'llama3.2',
         'max_retries': 3,
         'retry_delay': 1.0
     })

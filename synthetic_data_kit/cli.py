@@ -13,8 +13,15 @@ import requests
 from rich.console import Console
 from rich.table import Table
 
-from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_path_config
+from synthetic_data_kit.utils.config import (
+    load_config, 
+    get_backend_type,
+    get_vllm_config, 
+    get_ollama_config,
+    get_path_config
+)
 from synthetic_data_kit.core.context import AppContext
+from synthetic_data_kit.models.llm_client import LLMClient
 
 # Initialize Typer app
 app = typer.Typer(
@@ -44,36 +51,70 @@ def callback(
 
 @app.command("system-check")
 def system_check(
+    backend: Optional[str] = typer.Option(
+        None, "--backend", help="Backend to check (vllm or ollama)"
+    ),
     api_base: Optional[str] = typer.Option(
-        None, "--api-base", help="VLLM API base URL to check"
+        None, "--api-base", help="API base URL to check"
     )
 ):
     """
-    Check if the VLLM server is running.
+    Check if the LLM server (VLLM or Ollama) is running.
     """
-    # Get VLLM server details from args or config
-    vllm_config = get_vllm_config(ctx.config)
-    api_base = api_base or vllm_config.get("api_base")
+    # Get backend type from args or config
+    backend_type = backend or get_backend_type(ctx.config)
     
-    with console.status(f"Checking VLLM server at {api_base}..."):
+    if backend_type == "vllm":
+        config = get_vllm_config(ctx.config)
+        default_port = 8000
+        start_cmd = "vllm"
+    elif backend_type == "ollama":
+        config = get_ollama_config(ctx.config)
+        default_port = 11434
+        start_cmd = "ollama"
+    else:
+        console.print(f"L Error: Unsupported backend type: {backend_type}", style="red")
+        return 1
+    
+    # Get API base from args or config
+    api_base = api_base or config.get("api_base")
+    model = config.get("model")
+    
+    with console.status(f"Checking {backend_type.upper()} server at {api_base}..."):
         try:
             response = requests.get(f"{api_base}/models", timeout=2)
             if response.status_code == 200:
-                console.print(f" VLLM server is running at {api_base}", style="green")
-                console.print(f"Available models: {response.json()}")
+                console.print(f" {backend_type.upper()} server is running at {api_base}", style="green")
+                if backend_type == "ollama":
+                    models_data = response.json()["data"]
+                    table = Table("Model ID", "Created", "Owner")
+                    for model_info in models_data:
+                        table.add_row(
+                            model_info["id"],
+                            str(model_info.get("created", "N/A")),
+                            model_info.get("owned_by", "N/A")
+                        )
+                    console.print("\nAvailable Models:")
+                    console.print(table)
+                else:
+                    console.print(f"Available models: {response.json()}")
                 return 0
             else:
-                console.print(f"L VLLM server is not available at {api_base}", style="red")
+                console.print(f"L {backend_type.upper()} server is not available at {api_base}", style="red")
                 console.print(f"Error: Server returned status code: {response.status_code}")
         except requests.exceptions.RequestException as e:
-            console.print(f"L VLLM server is not available at {api_base}", style="red")
+            console.print(f"L {backend_type.upper()} server is not available at {api_base}", style="red")
             console.print(f"Error: {str(e)}")
-            
-        # Show instruction to start the server
-        model = vllm_config.get("model")
-        port = vllm_config.get("port", 8000)
-        console.print("\nTo start the server, run:", style="yellow")
-        console.print(f"vllm serve {model} --port {port}", style="bold blue")
+        
+        # Show instructions to start the server
+        if backend_type == "vllm":
+            console.print("\nTo start the VLLM server, run:", style="yellow")
+            console.print(f"vllm serve {model} --port {default_port}", style="bold blue")
+        else:
+            console.print("\nTo start the Ollama server, run:", style="yellow")
+            console.print("ollama serve", style="bold blue")
+            console.print("\nThen pull your model:", style="yellow")
+            console.print(f"ollama pull {model}", style="bold blue")
         return 1
 
 
@@ -115,8 +156,11 @@ def create(
     output_dir: Optional[Path] = typer.Option(
         None, "--output-dir", "-o", help="Where to save the output"
     ),
+    backend: Optional[str] = typer.Option(
+        None, "--backend", help="Backend to use (vllm or ollama)"
+    ),
     api_base: Optional[str] = typer.Option(
-        None, "--api-base", help="VLLM API base URL"
+        None, "--api-base", help="API base URL"
     ),
     model: Optional[str] = typer.Option(
         None, "--model", "-m", help="Model to use"
@@ -143,23 +187,16 @@ def create(
     """
     from synthetic_data_kit.core.create import process_file
     
-    # Get VLLM server details from args or config
-    vllm_config = get_vllm_config(ctx.config)
-    api_base = api_base or vllm_config.get("api_base")
-    model = model or vllm_config.get("model")
-    
-    # Check server first
+    # Initialize LLM client with appropriate backend
     try:
-        response = requests.get(f"{api_base}/models", timeout=2)
-        if response.status_code != 200:
-            console.print(f"L Error: VLLM server not available at {api_base}", style="red")
-            console.print("Please start the VLLM server with:", style="yellow")
-            console.print(f"vllm serve {model}", style="bold blue")
-            return 1
-    except requests.exceptions.RequestException:
-        console.print(f"L Error: VLLM server not available at {api_base}", style="red")
-        console.print("Please start the VLLM server with:", style="yellow")
-        console.print(f"vllm serve {model}", style="bold blue")
+        client = LLMClient(
+            config_path=ctx.config_path,
+            backend=backend,
+            api_base=api_base,
+            model_name=model
+        )
+    except Exception as e:
+        console.print(f"L Error initializing LLM client: {e}", style="red")
         return 1
     
     # Get output directory from args, then config, then default
@@ -172,8 +209,7 @@ def create(
                 input,
                 output_dir,
                 ctx.config_path,
-                api_base,
-                model,
+                client,
                 content_type,
                 num_pairs,
                 verbose
@@ -267,53 +303,51 @@ def save_as(
     output: Optional[Path] = typer.Option(
         None, "--output", "-o", help="Output file path"
     ),
+    backend: Optional[str] = typer.Option(
+        None, "--backend", help="Backend to use (vllm or ollama)"
+    ),
+    api_base: Optional[str] = typer.Option(
+        None, "--api-base", help="API base URL"
+    ),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Model to use"
+    ),
 ):
     """
-    Convert to different formats for fine-tuning.
-    
-    The --format option controls the content format (how the data is structured).
-    The --storage option controls how the data is stored (JSON file or HF dataset).
-    
-    When using --storage hf, the output will be a directory containing a Hugging Face 
-    dataset in Arrow format, which is optimized for machine learning workflows.
+    Convert content to different formats for fine-tuning.
     """
-    from synthetic_data_kit.core.save_as import convert_format
+    from synthetic_data_kit.core.save_as import process_file
     
-    # Get format from args or config
-    if not format:
-        format_config = ctx.config.get("format", {})
-        format = format_config.get("default", "jsonl")
+    # Initialize LLM client with appropriate backend
+    try:
+        client = LLMClient(
+            config_path=ctx.config_path,
+            backend=backend,
+            api_base=api_base,
+            model_name=model
+        )
+    except Exception as e:
+        console.print(f"L Error initializing LLM client: {e}", style="red")
+        return 1
     
-    # Set default output path if not provided
-    if not output:
-        final_dir = get_path_config(ctx.config, "output", "final")
-        os.makedirs(final_dir, exist_ok=True)
+    # Get output path
+    if output is None:
         base_name = os.path.splitext(os.path.basename(input))[0]
-        
-        if storage == "hf":
-            # For HF datasets, use a directory name
-            output = os.path.join(final_dir, f"{base_name}_{format}_hf")
-        else:
-            # For JSON files, use appropriate extension
-            if format == "jsonl":
-                output = os.path.join(final_dir, f"{base_name}.jsonl")
-            else:
-                output = os.path.join(final_dir, f"{base_name}_{format}.json")
+        output_dir = get_path_config(ctx.config, "output", "final")
+        os.makedirs(output_dir, exist_ok=True)
+        output = os.path.join(output_dir, f"{base_name}_{format}.{storage}")
     
     try:
-        with console.status(f"Converting {input} to {format} format with {storage} storage..."):
-            output_path = convert_format(
+        with console.status(f"Converting {input} to {format} format..."):
+            output_path = process_file(
                 input,
                 output,
                 format,
-                ctx.config,
-                storage_format=storage
+                storage,
+                ctx.config_path,
+                client
             )
-        
-        if storage == "hf":
-            console.print(f" Converted to {format} format and saved as HF dataset to [bold]{output_path}[/bold]", style="green")
-        else:
-            console.print(f" Converted to {format} format and saved to [bold]{output_path}[/bold]", style="green")
+        console.print(f" Content saved to [bold]{output_path}[/bold]", style="green")
         return 0
     except Exception as e:
         console.print(f"L Error: {e}", style="red")
