@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+
+{% block title %}File Browser{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2>File Browser</h2>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header bg-primary text-white">
+                                <h4>Input Files (Output Directory)</h4>
+                            </div>
+                            <div class="card-body">
+                                {% if output_files %}
+                                <div class="list-group">
+                                    {% for file in output_files %}
+                                    <a href="{{ url_for('view_file', file_path=file) }}" class="list-group-item list-group-item-action">
+                                        {{ file }}
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="text-muted">No files found in the output directory.</p>
+                                {% endif %}
+                            </div>
+                            <div class="card-footer text-end">
+                                <a href="{{ url_for('upload') }}" class="btn btn-primary btn-sm">Upload File</a>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header bg-success text-white">
+                                <h4>Generated Files</h4>
+                            </div>
+                            <div class="card-body">
+                                {% if generated_files %}
+                                <div class="list-group">
+                                    {% for file in generated_files %}
+                                    <a href="{{ url_for('view_file', file_path=file) }}" class="list-group-item list-group-item-action">
+                                        {{ file }}
+                                    </a>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="text-muted">No files found in the generated directory.</p>
+                                {% endif %}
+                            </div>
+                            <div class="card-footer text-end">
+                                <a href="{{ url_for('create') }}" class="btn btn-success btn-sm">Generate QA Pairs</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
