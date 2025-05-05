@@ -3,7 +3,7 @@
 #
 # This source code is licensed under the terms described in the LICENSE file in
 # the root directory of this source tree.
-# Generate teh content: CoT/QA/Summary Datasets
+# Generate the content: CoT/QA/Summary Datasets
 import os
 import json
 from pathlib import Path
