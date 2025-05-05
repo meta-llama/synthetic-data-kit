@@ -46,6 +46,9 @@ def callback(
 def system_check(
     api_base: Optional[str] = typer.Option(
         None, "--api-base", help="VLLM API base URL to check"
+    ),
+    api_key: Optional[str] = typer.Option(
+        None, "--api-key", help="API key for authentication"
     )
 ):
     """
@@ -54,10 +57,14 @@ def system_check(
     # Get VLLM server details from args or config
     vllm_config = get_vllm_config(ctx.config)
     api_base = api_base or vllm_config.get("api_base")
+    api_key = api_key or vllm_config.get("api_key")
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     
     with console.status(f"Checking VLLM server at {api_base}..."):
         try:
-            response = requests.get(f"{api_base}/models", timeout=2)
+            response = requests.get(f"{api_base}/models", headers=headers, timeout=2)
             if response.status_code == 200:
                 console.print(f" VLLM server is running at {api_base}", style="green")
                 console.print(f"Available models: {response.json()}")
@@ -121,6 +128,9 @@ def create(
     model: Optional[str] = typer.Option(
         None, "--model", "-m", help="Model to use"
     ),
+    api_key: Optional[str] = typer.Option(
+        None, "--api-key", help="API key for authentication"
+    ),
     num_pairs: Optional[int] = typer.Option(
         None, "--num-pairs", "-n", help="Target number of QA pairs to generate"
     ),
@@ -147,10 +157,14 @@ def create(
     vllm_config = get_vllm_config(ctx.config)
     api_base = api_base or vllm_config.get("api_base")
     model = model or vllm_config.get("model")
+    api_key = api_key or vllm_config.get("api_key")
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     
     # Check server first
     try:
-        response = requests.get(f"{api_base}/models", timeout=2)
+        response = requests.get(f"{api_base}/models", headers=headers, timeout=2)
         if response.status_code != 200:
             console.print(f"L Error: VLLM server not available at {api_base}", style="red")
             console.print("Please start the VLLM server with:", style="yellow")
@@ -201,6 +215,9 @@ def curate(
     model: Optional[str] = typer.Option(
         None, "--model", "-m", help="Model to use"
     ),
+    api_key: Optional[str] = typer.Option(
+        None, "--api-key", help="API key for authentication"
+    ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed output"
     ),
@@ -214,10 +231,14 @@ def curate(
     vllm_config = get_vllm_config(ctx.config)
     api_base = api_base or vllm_config.get("api_base")
     model = model or vllm_config.get("model")
+    api_key = api_key or vllm_config.get("api_key")
+    headers = {}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     
     # Check server first
     try:
-        response = requests.get(f"{api_base}/models", timeout=2)
+        response = requests.get(f"{api_base}/models", headers=headers, timeout=2)
         if response.status_code != 200:
             console.print(f"L Error: VLLM server not available at {api_base}", style="red")
             console.print("Please start the VLLM server with:", style="yellow")
