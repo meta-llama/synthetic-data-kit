@@ -6,6 +6,8 @@
 # PPTX parser logic
 
 import os
+import lance
+import pyarrow as pa
 from typing import Dict, Any
 
 class PPTParser:
@@ -48,12 +50,17 @@ class PPTParser:
         return "\n\n".join(all_text)
     
     def save(self, content: str, output_path: str) -> None:
-        """Save the extracted text to a file
+        """Save the extracted text to a Lance file
         
         Args:
             content: Extracted text content
-            output_path: Path to save the text
+            output_path: Path to save the Lance file
         """
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(content)
+        # Create a PyArrow table
+        data = [pa.array([content])]
+        names = ['text']
+        table = pa.Table.from_arrays(data, names=names)
+        
+        # Write to Lance file
+        lance.write_dataset(table, output_path, mode="overwrite")

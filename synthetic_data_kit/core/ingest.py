@@ -86,20 +86,20 @@ def process_file(
                 # Use video ID for YouTube URLs
                 import re
                 video_id = re.search(r'(?:v=|\.be/)([^&]+)', file_path).group(1)
-                output_name = f"youtube_{video_id}.txt"
+                output_name = f"youtube_{video_id}.lance"
             else:
                 # Use domain for other URLs
                 from urllib.parse import urlparse
                 domain = urlparse(file_path).netloc.replace('.', '_')
-                output_name = f"{domain}.txt"
+                output_name = f"{domain}.lance"
         else:
-            # Use original filename with .txt extension
+            # Use original filename with .lance extension
             base_name = os.path.basename(file_path)
-            output_name = os.path.splitext(base_name)[0] + '.txt'
+            output_name = os.path.splitext(base_name)[0] + '.lance'
     
-    # Ensure .txt extension
-    if not output_name.endswith('.txt'):
-        output_name += '.txt'
+    # Ensure .lance extension
+    if not output_name.endswith('.lance'):
+        output_name += '.lance'
     
     # Save the content
     output_path = os.path.join(output_dir, output_name)
