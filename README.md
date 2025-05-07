@@ -6,13 +6,13 @@ Generate Reasoning Traces, QA Pairs, save them to a fine-tuning format with a si
 
 > [Checkout our guide on using the tool to unlock task-specific reasoning in Llama-3 family](https://github.com/meta-llama/synthetic-data-kit/tree/main/use-cases/adding_reasoning_to_llama_3)
 
-# What do we offer? 
+# What does Synthetic Data Kit offer? 
 
 Fine-Tuning Large Language Models is easy. There are many mature tools that you can use to fine-tune Llama model family using various post-training techniques.
 
 ### Why target data preparation?
 
-Multiple tools support standardised formats. However, most of the times your dataset is not structured in "user", "assistant" threads or in a certain format that plays well with a fine-tuning packages. 
+Multiple tools support standardized formats. However, most of the times your dataset is not structured in "user", "assistant" threads or in a certain format that plays well with a fine-tuning packages. 
 
 This toolkit simplifies the journey of:
 
@@ -22,7 +22,7 @@ This toolkit simplifies the journey of:
 - Creating synthetic datasets
 - Supporting various formats of post-training fine-tuning
 
-# How do we offer it? 
+# How does Synthetic Data Kit offer it? 
 
 The tool is designed to follow a simple CLI structure with 4 commands:
 
@@ -31,7 +31,7 @@ The tool is designed to follow a simple CLI structure with 4 commands:
 - `curate`: Using Llama as a judge to curate high quality examples. 
 - `save-as`: After that you can simply save these to a format that your fine-tuning workflow requires.
 
-You can override any parameter or detail by either using the CLI or overiding the default YAML config.
+You can override any parameter or detail by either using the CLI or overriding the default YAML config.
 
 
 ### Installation
@@ -63,13 +63,13 @@ To get an overview of commands type:
 ### 1. Tool Setup
 
 - The tool expects respective files to be put in named folders.
-- We also require a vLLM server running the LLM that we will utilise for generating our dataset.
+- You also need a vLLM server running the LLM that you will utilize for generating your dataset.
 
 ```bash
 # Create directory structure
 mkdir -p data/{pdf,html,youtube,docx,ppt,txt,output,generated,cleaned,final}
 
-# Start VLLM server
+# Start vLLM server
 # Note you will need to grab your HF Authentication from: https://huggingface.co/settings/tokens
 vllm serve meta-llama/Llama-3.3-70B-Instruct --port 8000
 ```
@@ -79,7 +79,7 @@ vllm serve meta-llama/Llama-3.3-70B-Instruct --port 8000
 The flow follows 4 simple steps: `ingest`, `create`, `curate`, `save-as`, please paste your file into the respective folder:
 
 ```bash
-# Check if VLLM server is running
+# Check if vLLM server is running
 synthetic-data-kit system-check
 
 # Parse a document to text
@@ -106,7 +106,7 @@ synthetic-data-kit save-as data/cleaned/report_cleaned.json --format alpaca --st
 
 The toolkit uses a YAML configuration file (default: `configs/config.yaml`).
 
-Note, this can be overriden via either CLI arguments OR passing a custom YAML file
+Note, this can be overridden via either CLI arguments OR passing a custom YAML file
 
 ```yaml
 # Example configuration
@@ -126,7 +126,7 @@ curate:
 
 ### Customizing Configuration
 
-Create a overiding configuration file and use it with the `-c` flag:
+Create a overriding configuration file and use it with the `-c` flag:
 
 ```bash
 synthetic-data-kit -c my_config.yaml ingest docs/paper.pdf
@@ -237,9 +237,9 @@ graph LR
 
 ## Troubleshooting FAQs:
 
-### VLLM Server Issues
+### vLLM Server Issues
 
-- Ensure VLLM is installed: `pip install vllm`
+- Ensure vLLM is installed: `pip install vllm`
 - Start server with: `vllm serve <model_name> --port 8000`
 - Check connection: `synthetic-data-kit system-check`
 
@@ -248,7 +248,7 @@ graph LR
 If you encounter CUDA out of memory errors:
 - Use a smaller model
 - Reduce batch size in config
-- Start VLLM with `--gpu-memory-utilization 0.85`
+- Start vLLM with `--gpu-memory-utilization 0.85`
 
 ### JSON Parsing Issues
 
