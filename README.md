@@ -263,7 +263,7 @@ If you encounter issues with the `curate` command:
 - Ensure required dependencies are installed for specific parsers:
   - PDF: `pip install pdfminer.six`
   - HTML: `pip install beautifulsoup4`
-  - YouTube: `pip install pytube youtube-transcript-api`
+  - YouTube: `pip install pytubefix youtube-transcript-api`
   - DOCX: `pip install python-docx`
   - PPTX: `pip install python-pptx`
 

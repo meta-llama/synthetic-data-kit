@@ -21,7 +21,7 @@ class YouTubeParser:
             Transcript text
         """
         try:
-            from pytube import YouTube
+            from pytubefix import YouTube
             from youtube_transcript_api import YouTubeTranscriptApi
         except ImportError:
             raise ImportError(
