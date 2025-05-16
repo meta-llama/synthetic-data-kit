@@ -22,6 +22,7 @@ def process_file(
     content_type: str = "qa",
     num_pairs: Optional[int] = None,
     verbose: bool = False,
+    provider: Optional[str] = None,
 ) -> str:
     """Process a file to generate content
     
@@ -49,9 +50,13 @@ def process_file(
     # Initialize LLM client
     client = LLMClient(
         config_path=config_path,
+        provider=provider,
         api_base=api_base,
         model_name=model
     )
+    
+    # Debug: Print which provider is being used
+    print(f"L Using {client.provider} provider")
     
     # Generate base filename for output
     base_name = os.path.splitext(os.path.basename(file_path))[0]

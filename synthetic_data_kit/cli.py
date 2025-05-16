@@ -13,8 +13,9 @@ import requests
 from rich.console import Console
 from rich.table import Table
 
-from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_path_config
+from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider, get_path_config
 from synthetic_data_kit.core.context import AppContext
+from synthetic_data_kit.server.app import run_server
 
 # Initialize Typer app
 app = typer.Typer(
@@ -45,36 +46,89 @@ def callback(
 @app.command("system-check")
 def system_check(
     api_base: Optional[str] = typer.Option(
-        None, "--api-base", help="VLLM API base URL to check"
+        None, "--api-base", help="API base URL to check"
+    ),
+    provider: Optional[str] = typer.Option(
+        None, "--provider", help="Provider to check ('vllm' or 'openai')"
     )
 ):
     """
-    Check if the VLLM server is running.
+    Check if the selected LLM provider's server is running.
     """
-    # Get VLLM server details from args or config
-    vllm_config = get_vllm_config(ctx.config)
-    api_base = api_base or vllm_config.get("api_base")
+    # Get provider from args or config
+    selected_provider = provider or get_llm_provider(ctx.config)
     
-    with console.status(f"Checking VLLM server at {api_base}..."):
-        try:
-            response = requests.get(f"{api_base}/models", timeout=2)
-            if response.status_code == 200:
-                console.print(f" VLLM server is running at {api_base}", style="green")
-                console.print(f"Available models: {response.json()}")
-                return 0
-            else:
-                console.print(f"L VLLM server is not available at {api_base}", style="red")
-                console.print(f"Error: Server returned status code: {response.status_code}")
-        except requests.exceptions.RequestException as e:
-            console.print(f"L VLLM server is not available at {api_base}", style="red")
-            console.print(f"Error: {str(e)}")
-            
-        # Show instruction to start the server
+    if selected_provider == "openai":
+        # Get OpenAI config
+        openai_config = get_openai_config(ctx.config)
+        api_base = api_base or openai_config.get("api_base")
+        api_key = openai_config.get("api_key") or os.environ.get("OPENAI_API_KEY")
+        model = openai_config.get("model")
+        
+        # Check OpenAI API access
+        with console.status(f"Checking OpenAI API access..."):
+            try:
+                # Try to import OpenAI
+                try:
+                    from openai import OpenAI
+                except ImportError:
+                    console.print("L OpenAI package not installed", style="red")
+                    console.print("Install with: pip install openai>=1.0.0", style="yellow")
+                    return 1
+                
+                # Create client
+                client_kwargs = {}
+                if api_key:
+                    client_kwargs['api_key'] = api_key
+                if api_base:
+                    client_kwargs['base_url'] = api_base
+                
+                # Check API access
+                try:
+                    client = OpenAI(**client_kwargs)
+                    # Try a simple models list request to check connectivity
+                    models = client.models.list()
+                    console.print(f" OpenAI API access confirmed", style="green")
+                    if api_base:
+                        console.print(f"Using custom API base: {api_base}", style="green")
+                    console.print(f"Default model: {model}", style="green")
+                    return 0
+                except Exception as e:
+                    console.print(f"L Error connecting to OpenAI API: {str(e)}", style="red")
+                    if api_base:
+                        console.print(f"Using custom API base: {api_base}", style="yellow")
+                    if not api_key and not api_base:
+                        console.print("API key is required. Set in config.yaml or as OPENAI_API_KEY env var", style="yellow")
+                    return 1
+            except Exception as e:
+                console.print(f"L Error: {str(e)}", style="red")
+                return 1
+    else:
+        # Default to vLLM
+        # Get vLLM server details
+        vllm_config = get_vllm_config(ctx.config)
+        api_base = api_base or vllm_config.get("api_base")
         model = vllm_config.get("model")
         port = vllm_config.get("port", 8000)
-        console.print("\nTo start the server, run:", style="yellow")
-        console.print(f"vllm serve {model} --port {port}", style="bold blue")
-        return 1
+        
+        with console.status(f"Checking vLLM server at {api_base}..."):
+            try:
+                response = requests.get(f"{api_base}/models", timeout=2)
+                if response.status_code == 200:
+                    console.print(f" vLLM server is running at {api_base}", style="green")
+                    console.print(f"Available models: {response.json()}")
+                    return 0
+                else:
+                    console.print(f"L vLLM server is not available at {api_base}", style="red")
+                    console.print(f"Error: Server returned status code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                console.print(f"L vLLM server is not available at {api_base}", style="red")
+                console.print(f"Error: {str(e)}")
+                
+            # Show instruction to start the server
+            console.print("\nTo start the server, run:", style="yellow")
+            console.print(f"vllm serve {model} --port {port}", style="bold blue")
+            return 1
 
 
 @app.command()
@@ -143,24 +197,34 @@ def create(
     """
     from synthetic_data_kit.core.create import process_file
     
-    # Get VLLM server details from args or config
-    vllm_config = get_vllm_config(ctx.config)
-    api_base = api_base or vllm_config.get("api_base")
-    model = model or vllm_config.get("model")
-    
-    # Check server first
-    try:
-        response = requests.get(f"{api_base}/models", timeout=2)
-        if response.status_code != 200:
+    # Check the LLM provider from config
+    provider = get_llm_provider(ctx.config)
+    console.print(f"L Using {provider} provider", style="green")
+    if provider == "openai":
+        # Use OpenAI config
+        openai_config = get_openai_config(ctx.config)
+        api_base = api_base or openai_config.get("api_base")
+        model = model or openai_config.get("model")
+        # No server check needed for OpenAI
+    else:
+        # Use vLLM config
+        vllm_config = get_vllm_config(ctx.config)
+        api_base = api_base or vllm_config.get("api_base")
+        model = model or vllm_config.get("model")
+        
+        # Check vLLM server availability
+        try:
+            response = requests.get(f"{api_base}/models", timeout=2)
+            if response.status_code != 200:
+                console.print(f"L Error: VLLM server not available at {api_base}", style="red")
+                console.print("Please start the VLLM server with:", style="yellow")
+                console.print(f"vllm serve {model}", style="bold blue")
+                return 1
+        except requests.exceptions.RequestException:
             console.print(f"L Error: VLLM server not available at {api_base}", style="red")
             console.print("Please start the VLLM server with:", style="yellow")
             console.print(f"vllm serve {model}", style="bold blue")
             return 1
-    except requests.exceptions.RequestException:
-        console.print(f"L Error: VLLM server not available at {api_base}", style="red")
-        console.print("Please start the VLLM server with:", style="yellow")
-        console.print(f"vllm serve {model}", style="bold blue")
-        return 1
     
     # Get output directory from args, then config, then default
     if output_dir is None:
@@ -176,7 +240,8 @@ def create(
                 model,
                 content_type,
                 num_pairs,
-                verbose
+                verbose,
+                provider=provider  # Pass the provider parameter
             )
         if output_path:
             console.print(f" Content saved to [bold]{output_path}[/bold]", style="green")
@@ -210,24 +275,34 @@ def curate(
     """
     from synthetic_data_kit.core.curate import curate_qa_pairs
     
-    # Get VLLM server details from args or config
-    vllm_config = get_vllm_config(ctx.config)
-    api_base = api_base or vllm_config.get("api_base")
-    model = model or vllm_config.get("model")
+    # Check the LLM provider from config
+    provider = get_llm_provider(ctx.config)
     
-    # Check server first
-    try:
-        response = requests.get(f"{api_base}/models", timeout=2)
-        if response.status_code != 200:
+    if provider == "openai":
+        # Use OpenAI config
+        openai_config = get_openai_config(ctx.config)
+        api_base = api_base or openai_config.get("api_base")
+        model = model or openai_config.get("model")
+        # No server check needed for OpenAI
+    else:
+        # Use vLLM config
+        vllm_config = get_vllm_config(ctx.config)
+        api_base = api_base or vllm_config.get("api_base")
+        model = model or vllm_config.get("model")
+        
+        # Check vLLM server availability
+        try:
+            response = requests.get(f"{api_base}/models", timeout=2)
+            if response.status_code != 200:
+                console.print(f"L Error: VLLM server not available at {api_base}", style="red")
+                console.print("Please start the VLLM server with:", style="yellow")
+                console.print(f"vllm serve {model}", style="bold blue")
+                return 1
+        except requests.exceptions.RequestException:
             console.print(f"L Error: VLLM server not available at {api_base}", style="red")
             console.print("Please start the VLLM server with:", style="yellow")
             console.print(f"vllm serve {model}", style="bold blue")
             return 1
-    except requests.exceptions.RequestException:
-        console.print(f"L Error: VLLM server not available at {api_base}", style="red")
-        console.print("Please start the VLLM server with:", style="yellow")
-        console.print(f"vllm serve {model}", style="bold blue")
-        return 1
     
     # Get default output path from config if not provided
     if not output:
@@ -245,7 +320,8 @@ def curate(
                 api_base,
                 model,
                 ctx.config_path,
-                verbose
+                verbose,
+                provider=provider  # Pass the provider parameter
             )
         console.print(f" Cleaned content saved to [bold]{result_path}[/bold]", style="green")
         return 0
@@ -318,6 +394,34 @@ def save_as(
     except Exception as e:
         console.print(f"L Error: {e}", style="red")
         return 1
+
+
+@app.command("server")
+def server(
+    host: str = typer.Option(
+        "127.0.0.1", "--host", help="Host address to bind the server to"
+    ),
+    port: int = typer.Option(
+        5000, "--port", "-p", help="Port to run the server on"
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", "-d", help="Run the server in debug mode"
+    ),
+):
+    """
+    Start a web interface for the Synthetic Data Kit.
+    
+    This launches a web server that provides a UI for all SDK functionality,
+    including generating and curating QA pairs, as well as viewing
+    and managing generated files.
+    """
+    provider = get_llm_provider(ctx.config)
+    console.print(f"Starting web server with {provider} provider...", style="green")
+    console.print(f"Web interface available at: http://{host}:{port}", style="bold green")
+    console.print("Press CTRL+C to stop the server.", style="italic")
+    
+    # Run the Flask server
+    run_server(host=host, port=port, debug=debug)
 
 
 if __name__ == "__main__":

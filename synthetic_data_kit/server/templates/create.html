@@ -1,0 +1,127 @@
+{% extends 'base.html' %}
+
+{% block title %}Create QA Pairs{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2>Generate Content</h2>
+            </div>
+            <div class="card-body">
+                <p>Generate content from text documents using the {{ provider }} provider.</p>
+                <div class="alert alert-info">
+                    <strong>Content Types:</strong>
+                    <ul class="mb-0">
+                        <li><strong>QA Pairs:</strong> Generate question-answer pairs from text</li>
+                        <li><strong>Summary:</strong> Generate a summary of the text</li>
+                        <li><strong>Chain of Thought:</strong> Generate Chain of Thought reasoning examples from text</li>
+                        <li><strong>CoT Enhancement:</strong> Enhance existing tool-use conversations with Chain of Thought reasoning</li>
+                    </ul>
+                </div>
+                
+                <form method="POST" class="loading-form" data-loading-message="Generating content with LLM... This may take a minute or two">
+                    {{ form.csrf_token }}
+                    
+                    <div class="mb-3">
+                        <label for="input_file" class="form-label">{{ form.input_file.label }}</label>
+                        {% if input_files %}
+                        <div class="input-group">
+                            {{ form.input_file(class="form-control", placeholder="Path to input text file") }}
+                            <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                Available Files
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                {% for file in input_files %}
+                                <li><a class="dropdown-item file-select" href="#" data-file="{{ file }}">{{ file }}</a></li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                        {% else %}
+                        {{ form.input_file(class="form-control", placeholder="Path to input text file") }}
+                        {% endif %}
+                        {% if form.input_file.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.input_file.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <div class="form-text">Enter the path to the text file you want to process.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="content_type" class="form-label">{{ form.content_type.label }}</label>
+                        {{ form.content_type(class="form-select") }}
+                        {% if form.content_type.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.content_type.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <div class="form-text">Select the type of content you want to generate.</div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="num_pairs" class="form-label">{{ form.num_pairs.label }}</label>
+                        {{ form.num_pairs(class="form-control", placeholder="Number of QA pairs to generate") }}
+                        {% if form.num_pairs.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.num_pairs.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <div class="form-text">Number of items to generate (applies to QA pairs and some other content types).</div>
+                    </div>
+                    
+                    <div class="accordion" id="advancedOptions">
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="headingAdvanced">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdvanced">
+                                    Advanced Options
+                                </button>
+                            </h2>
+                            <div id="collapseAdvanced" class="accordion-collapse collapse" data-bs-parent="#advancedOptions">
+                                <div class="accordion-body">
+                                    <div class="mb-3">
+                                        <label for="model" class="form-label">{{ form.model.label }}</label>
+                                        {{ form.model(class="form-control", placeholder="Leave blank for default model") }}
+                                        <div class="form-text">Specify a model name to use instead of the default.</div>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label for="api_base" class="form-label">{{ form.api_base.label }}</label>
+                                        {{ form.api_base(class="form-control", placeholder="Leave blank for default API URL") }}
+                                        <div class="form-text">Specify a custom API base URL.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // File selector for dropdown
+        document.querySelectorAll('.file-select').forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                document.getElementById('input_file').value = this.getAttribute('data-file');
+            });
+        });
+    });
+</script>
+{% endblock %}
