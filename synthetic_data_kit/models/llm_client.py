@@ -19,7 +19,8 @@ class LLMClient:
                  api_base: Optional[str] = None, 
                  model_name: Optional[str] = None,
                  max_retries: Optional[int] = None,
-                 retry_delay: Optional[float] = None):
+                 retry_delay: Optional[float] = None,
+                 api_key: Optional[str] = None):  # added api_key parameter
         """Initialize an OpenAI-compatible client that connects to a VLLM server
         
         Args:
@@ -28,6 +29,7 @@ class LLMClient:
             model_name: Override model name from config
             max_retries: Override max retries from config
             retry_delay: Override retry delay from config
+            api_key: Override API key from config
         """
         # Load config
         self.config = load_config(config_path)
@@ -38,6 +40,7 @@ class LLMClient:
         self.model = model_name or vllm_config.get('model')
         self.max_retries = max_retries or vllm_config.get('max_retries')
         self.retry_delay = retry_delay or vllm_config.get('retry_delay')
+        self.api_key = api_key or vllm_config.get('api_key')  # save API key
         
         # Verify server is running
         available, info = self._check_server()
@@ -47,7 +50,10 @@ class LLMClient:
     def _check_server(self) -> tuple:
         """Check if the VLLM server is running and accessible"""
         try:
-            response = requests.get(f"{self.api_base}/models", timeout=5)
+            headers = {}
+            if self.api_key:
+                headers["Authorization"] = f"Bearer {self.api_key}"
+            response = requests.get(f"{self.api_base}/models", headers=headers, timeout=5)
             if response.status_code == 200:
                 return True, response.json()
             return False, f"Server returned status code: {response.status_code}"
@@ -79,9 +85,12 @@ class LLMClient:
                 # Only print if verbose mode is enabled
                 if os.environ.get('SDK_VERBOSE', 'false').lower() == 'true':
                     print(f"Sending request to model {self.model}...")
+                headers = {"Content-Type": "application/json"}
+                if self.api_key:
+                    headers["Authorization"] = f"Bearer {self.api_key}"
                 response = requests.post(
                     f"{self.api_base}/chat/completions",
-                    headers={"Content-Type": "application/json"},
+                    headers=headers,
                     data=json.dumps(data),
                     timeout=180  # Increased timeout to 180 seconds
                 )
@@ -143,9 +152,12 @@ class LLMClient:
                     if verbose:
                         print(f"Sending batch request to model {self.model}...")
                     
+                    headers = {"Content-Type": "application/json"}
+                    if self.api_key:
+                        headers["Authorization"] = f"Bearer {self.api_key}"
                     response = requests.post(
                         f"{self.api_base}/chat/completions",
-                        headers={"Content-Type": "application/json"},
+                        headers=headers,
                         data=json.dumps(request_data),
                         timeout=180  # Increased timeout for batch processing
                     )
