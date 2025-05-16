@@ -20,10 +20,12 @@ class PDFParser:
             Extracted text from the PDF
         """
         try:
-            from pdfminer.high_level import extract_text
-            return extract_text(file_path)
+            from unstructured.partition.pdf import partition_pdf
+            elements = partition_pdf(filename=file_path)
+            
+            return "\n".join([str(elem) for elem in elements])
         except ImportError:
-            raise ImportError("pdfminer.six is required for PDF parsing. Install it with: pip install pdfminer.six")
+            raise ImportError("unstructured is required for PDF parsing. Install it with: pip install unstructured")
     
     def save(self, content: str, output_path: str) -> None:
         """Save the extracted text to a file
