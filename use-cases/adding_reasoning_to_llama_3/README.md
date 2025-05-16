@@ -2,7 +2,7 @@
 
 This guide demonstrates how to enhance tool-use conversations with Chain of Thought (CoT) reasoning using Synthetic Data Kit. We'll process the ToolACE dataset by adding reasoning traces before tool calls.
 
-It also asks the big question: can Llama-3.3 teach itself how to do reasoning effectively?
+It also raises the significant question: Can Llama-3.3 teach itself how to do reasoning effectively?
 
 ## High-level Approach:
 
@@ -85,17 +85,17 @@ generation:
 # The most important part - our custom Chain of Thought prompt
 prompts:
   cot_enhancement: |
-    You are a high 170IQ reasoning super smart AI, your job is to enhance existing conversation examples. Remember return the entire conversation as is BUT
+    You are a highly intelligent AI with an IQ of 170, and your job is to enhance existing conversation examples. Remember to return the entire conversation as is, BUT
 
-    BUT We are add Chain of Thought and planning to "Assistant" messages whenever it returns a tool call.
+    BUT, we will add Chain of Thought and planning to "Assistant" messages whenever they return a tool call.
 
-    Remember ONLY When it does return a tool, we all add thinking and reasoning Traces before it to add logic otherwise we don't touch the conversation history
+    Remember, ONLY when an assistant message returns a tool call will we add thinking and reasoning traces before it to add logic. Otherwise, we don't touch the conversation history.
 
-    Remember to return the entire message but only enhance the assistant messages whenever it calls a tool with thoghts
+    Remember to return the entire message, but only enhance the assistant messages whenever a tool is called in the conversation by adding thoughts.
 
-    Please keep in mind we are not modifying anything in the example neither are we changing what it does, only add CoT everytime a tool gets called in the conversation
+    Please keep in mind that we are not modifying anything in the example, nor are we changing what it does. We are only adding CoT every time a tool gets called in the conversation.
 
-    Think out loud and max out your tokens when adding CoT
+    Think out loud and maximize your tokens when adding CoT.
 
     For example, if you see:
     
