@@ -9,6 +9,9 @@ import json
 from pathlib import Path
 from typing import Optional, Dict, Any
 
+import lance
+import pyarrow as pa
+
 from synthetic_data_kit.models.llm_client import LLMClient
 from synthetic_data_kit.generators.qa_generator import QAGenerator
 from synthetic_data_kit.utils.config import get_generation_config
@@ -26,7 +29,7 @@ def process_file(
     """Process a file to generate content
     
     Args:
-        file_path: Path to the text file to process
+        file_path: Path to the file to process (txt or lance format)
         output_dir: Directory to save generated content
         config_path: Path to configuration file
         api_base: VLLM API base URL
@@ -42,9 +45,35 @@ def process_file(
     # The reason for having this directory logic for now is explained in context.py
     os.makedirs(output_dir, exist_ok=True)
     
-    # Read the file
-    with open(file_path, 'r', encoding='utf-8') as f:
-        document_text = f.read()
+    # Determine file type based on extension
+    file_extension = os.path.splitext(file_path)[1].lower()
+    
+    if file_extension == '.lance':
+        dataset = lance.dataset(file_path)
+        
+        # Extract text from the dataset
+        if 'text' in dataset.schema.names:
+            # Get the data
+            # TODO: Might be better to do this in batch or streaming
+            # mode for larger than memory datasets
+            batch = dataset.to_table(columns=['text']).to_pandas()
+            document_text = '\n'.join(batch['text'].tolist())
+        else:
+            # Try to find a suitable text column
+            text_columns = [col for col in dataset.schema.names 
+                           if dataset.schema.field(col).type == pa.string()]
+            
+            if text_columns:
+                batch = dataset.to_table(columns=[text_columns[0]]).to_pandas()
+                document_text = '\n'.join(batch[text_columns[0]].tolist())
+                if verbose:
+                    print(f"Using column '{text_columns[0]}' from Lance dataset")
+            else:
+                raise ValueError(f"Could not find text column in Lance dataset: {file_path}")
+    else:
+        # Default behavior for text files
+        with open(file_path, 'r', encoding='utf-8') as f:
+            document_text = f.read()
     
     # Initialize LLM client
     client = LLMClient(
