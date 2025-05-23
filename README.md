@@ -26,10 +26,10 @@ This toolkit simplifies the journey of:
 
 The tool is designed to follow a simple CLI structure with 4 commands:
 
-- `ingest` various file formats
-- `create` your fine-tuning format: `QA` pairs, `QA` pairs with CoT, `summary` format
-- `curate`: Using Llama as a judge to curate high quality examples. 
-- `save-as`: After that you can simply save these to a format that your fine-tuning workflow requires.
+- `ingest`: Parse various file formats (PDF, HTML, DOCX, PPTX, TXT, YouTube URLs). Supports text-only and multimodal (text + image) extraction for supported formats.
+- `create`: Generate synthetic fine-tuning data from your ingested text, such as Question/Answer (QA) pairs, QA pairs with Chain of Thought (CoT), or summaries.
+- `curate`: Use an LLM as a judge to curate high-quality examples from the generated data.
+- `save-as`: Save the curated data into various formats suitable for fine-tuning (JSONL, Alpaca, FT, ChatML), either as local files or Hugging Face datasets.
 
 You can override any parameter or detail by either using the CLI or overiding the default YAML config.
 
@@ -82,9 +82,13 @@ The flow follows 4 simple steps: `ingest`, `create`, `curate`, `save-as`, please
 # Check if VLLM server is running
 synthetic-data-kit system-check
 
-# Parse a document to text
+# Parse a document to text (text-only)
 synthetic-data-kit ingest docs/report.pdf
-# This will save file to data/output/report.txt
+# This will save file to data/output/parsed/report.lance (text-only)
+
+# Parse a document, extracting text and images (multimodal)
+synthetic-data-kit ingest docs/presentation.pptx --multimodal
+# This will save file to data/output/parsed/presentation.lance (with text and image columns)
 
 # Generate QA pairs (default)
 synthetic-data-kit create data/output/report.txt --type qa
@@ -151,6 +155,39 @@ synthetic-data-kit save-as data/cleaned/research_paper_cleaned.json -f ft
 
 # Save in OpenAI fine-tuning format (HF dataset)
 synthetic-data-kit save-as data/cleaned/research_paper_cleaned.json -f ft --storage hf
+```
+
+### Multimodal Parsing
+
+The `ingest` command supports a `--multimodal` flag for DOCX, PDF, PPTX, and HTML files. When this flag is used, the toolkit attempts to extract images alongside text.
+
+**Output Format:**
+
+-   If `--multimodal` is **not** used, or for unsupported file types (like TXT, YouTube), the output Lance dataset in `data/output/parsed/` will contain a single `text` column.
+-   If `--multimodal` **is** used for a supported file type:
+    -   The output Lance dataset will contain two columns:
+        -   `text` (string): The extracted text content.
+        -   `image` (binary): The raw image bytes (e.g., PNG, JPEG). This will be `None` (null) if no image is associated with a given text entry.
+
+**Image-Text Association Heuristics:**
+
+The association of images with text currently follows these heuristics:
+
+-   **DOCX (`.docx`):** The *first image* found anywhere in the document is associated with *each text block* (paragraph or table cell text) extracted from the document. If no image is found in the document, the 'image' field will be `None` for all text entries.
+-   **PDF (`.pdf`):** The *first image* encountered on a given page is associated with *all text extracted from that same page*. If a page contains no images, the 'image' field will be `None` for all text entries from that page. Text is grouped by page.
+-   **PPTX (`.pptx`):** The *first image* found on a given slide is associated with *all text extracted from that same slide* (including title, content shapes, and notes). If a slide contains no images, the 'image' field will be `None` for that slide's text entry. Text is grouped by slide.
+-   **HTML (`.html`, `.htm`):**
+    -   Text from common content tags (e.g., `<p>`, `<h1>`-`<h6>`, `<li>`, `<td>`, `<span>`, `<blockquote>`) is extracted. These text entries usually have their 'image' field set to `None`.
+    -   For `<img>` tags:
+        -   The `alt` attribute's text is extracted into the 'text' field. If no `alt` text is present, this field may be an empty string.
+        -   The image itself is downloaded (handling data URIs, absolute, and relative URLs) and its bytes are stored in the 'image' field. If the image cannot be fetched, this field will be `None`.
+    -   This typically results in some rows in the Lance dataset being text-centric (image is `None`) and others being image-centric (text is the `alt` text).
+
+**Example of multimodal ingest:**
+
+```bash
+synthetic-data-kit ingest my_document.docx --multimodal
+# Output: data/output/parsed/my_document.lance (with 'text' and 'image' columns)
 ```
 
 ### Processing a YouTube Video

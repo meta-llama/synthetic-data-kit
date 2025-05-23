@@ -86,6 +86,9 @@ def ingest(
     name: Optional[str] = typer.Option(
         None, "--name", "-n", help="Custom output filename"
     ),
+    multimodal: bool = typer.Option(
+        False, "--multimodal", help="Enable multimodal processing to include images."
+    ),
 ):
     """
     Parse documents (PDF, HTML, YouTube, DOCX, PPT, TXT) into clean text.
@@ -98,7 +101,7 @@ def ingest(
     
     try:
         with console.status(f"Processing {input}..."):
-            output_path = process_file(input, output_dir, name, ctx.config)
+            output_path = process_file(input, output_dir, name, ctx.config, multimodal)
         console.print(f" Text successfully extracted to [bold]{output_path}[/bold]", style="green")
         return 0
     except Exception as e:

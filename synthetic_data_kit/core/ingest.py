@@ -56,6 +56,7 @@ def process_file(
     output_dir: Optional[str] = None,
     output_name: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
+    multimodal: bool = False,
 ) -> str:
     """Process a file using the appropriate parser
     
@@ -76,7 +77,7 @@ def process_file(
     parser = determine_parser(file_path, config)
     
     # Parse the file
-    content = parser.parse(file_path)
+    content = parser.parse(file_path, multimodal=multimodal)
     
     # Generate output filename if not provided
     if not output_name:
