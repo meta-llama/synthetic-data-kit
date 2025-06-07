@@ -10,6 +10,7 @@ import json
 import time
 import os
 import logging
+import asyncio
 from pathlib import Path
 
 from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider
@@ -340,6 +341,146 @@ class LLMClient:
         else:  # Default to vLLM
             return self._vllm_batch_completion(message_batches, temperature, max_tokens, top_p, batch_size, verbose)
     
+    async def _process_message_async(self, 
+                                    messages: List[Dict[str, str]], 
+                                    temperature: float,
+                                    max_tokens: int,
+                                    top_p: float,
+                                    verbose: bool,
+                                    debug_mode: bool):
+        """Process a single message set asynchronously using the OpenAI API"""
+        try:
+            from openai import AsyncOpenAI
+        except ImportError:
+            raise ImportError("The 'openai' package is required for this functionality. Please install it using 'pip install openai>=1.0.0'.")
+        
+        # Initialize the async OpenAI client
+        client_kwargs = {}
+        if self.api_key:
+            client_kwargs['api_key'] = self.api_key
+        if self.api_base:
+            client_kwargs['base_url'] = self.api_base
+            
+        async_client = AsyncOpenAI(**client_kwargs)
+        
+        for attempt in range(self.max_retries):
+            try:
+                # Asynchronously call the API
+                response = await async_client.chat.completions.create(
+                    model=self.model,
+                    messages=messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    top_p=top_p
+                )
+                
+                if verbose:
+                    logger.info(f"Received response from {self.provider}")
+                
+                # Log the full response in debug mode
+                if debug_mode:
+                    if hasattr(response, 'model_dump'):
+                        logger.debug(f"Full response: {response.model_dump()}")
+                    else:
+                        logger.debug(f"Response type: {type(response)}")
+                        logger.debug(f"Response attributes: {dir(response)}")
+                
+                content = None
+                
+                # Method 1: Try standard OpenAI API response format
+                try:
+                    if hasattr(response, 'choices') and response.choices is not None and len(response.choices) > 0:
+                        choice = response.choices[0]
+                        if hasattr(choice, 'message') and choice.message is not None:
+                            if hasattr(choice.message, 'content') and choice.message.content is not None:
+                                content = choice.message.content
+                except Exception as e:
+                    if verbose:
+                        logger.info(f"Standard format extraction failed: {e}, trying alternative formats...")
+                
+                # Method 2: Llama API format
+                if content is None:
+                    try:
+                        if hasattr(response, 'completion_message') and response.completion_message is not None:
+                            completion = response.completion_message
+                            # Handle dictionary case
+                            if isinstance(completion, dict) and 'content' in completion:
+                                content_obj = completion['content']
+                                # Different Llama API response formats
+                                if isinstance(content_obj, dict) and 'text' in content_obj:
+                                    content = content_obj['text']
+                                elif isinstance(content_obj, str):
+                                    content = content_obj
+                    except Exception as e:
+                        if verbose:
+                            logger.info(f"Llama API format extraction failed: {e}, trying dictionary access...")
+                
+                # Method 3: Try dictionary access for both formats
+                if content is None:
+                    try:
+                        # Convert to dictionary if possible
+                        response_dict = None
+                        if hasattr(response, 'model_dump'):
+                            response_dict = response.model_dump()
+                        elif hasattr(response, 'dict'):
+                            response_dict = response.dict()
+                        elif hasattr(response, '__dict__'):
+                            response_dict = response.__dict__
+                        elif isinstance(response, dict):
+                            response_dict = response
+                        
+                        if response_dict is not None:
+                            # Try Llama API format
+                            if 'completion_message' in response_dict and response_dict['completion_message'] is not None:
+                                comp = response_dict['completion_message']
+                                if isinstance(comp, dict) and 'content' in comp:
+                                    content_obj = comp['content']
+                                    if isinstance(content_obj, dict) and 'text' in content_obj:
+                                        content = content_obj['text']
+                                    elif isinstance(content_obj, str):
+                                        content = content_obj
+                            
+                            # Try OpenAI format
+                            if content is None and 'choices' in response_dict and response_dict['choices'] and len(response_dict['choices']) > 0:
+                                choice = response_dict['choices'][0]
+                                if isinstance(choice, dict) and 'message' in choice:
+                                    message = choice['message']
+                                    if isinstance(message, dict) and 'content' in message and message['content'] is not None:
+                                        content = message['content']
+                    except Exception as e:
+                        if verbose:
+                            logger.info(f"Dictionary access failed: {e}")
+                
+                # If content is still None, print detailed debug info
+                if content is None:
+                    if verbose or debug_mode:
+                        logger.error("Could not extract content from response using any known method")
+                        logger.error(f"Response: {response}")
+                        if isinstance(response, dict):
+                            for k, v in response.items():
+                                logger.error(f"Key: {k}, Value type: {type(v)}, Value: {v}")
+                        # Try to find any content-like fields
+                        all_attrs = dir(response)
+                        content_fields = [attr for attr in all_attrs if 'content' in attr.lower() or 'text' in attr.lower() or 'message' in attr.lower()]
+                        for field in content_fields:
+                            try:
+                                logger.error(f"Potential content field '{field}': {getattr(response, field, 'N/A')}")
+                            except:
+                                pass
+                    
+                    raise ValueError(f"Could not extract content from response using any known method")
+                
+                return content
+                
+            except Exception as e:
+                if verbose:
+                    logger.error(f"{self.provider} API error (attempt {attempt+1}/{self.max_retries}): {str(e)}")
+                
+                if attempt == self.max_retries - 1:
+                    return f"ERROR: {str(e)}"
+                
+                await asyncio.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
+    
     def _openai_batch_completion(self,
                                 message_batches: List[List[Dict[str, str]]],
                                 temperature: float,
@@ -347,7 +488,7 @@ class LLMClient:
                                 top_p: float,
                                 batch_size: int,
                                 verbose: bool) -> List[str]:
-        """Process multiple message sets using the OpenAI API or compatible APIs"""
+        """Process multiple message sets using the OpenAI API or compatible APIs asynchronously"""
         debug_mode = os.environ.get('SDK_DEBUG', 'false').lower() == 'true'
         results = []
         
@@ -357,132 +498,31 @@ class LLMClient:
             if verbose:
                 logger.info(f"Processing batch {i//batch_size + 1}/{(len(message_batches) + batch_size - 1) // batch_size} with {len(batch_chunk)} requests")
             
-            # For now, process each request sequentially with the OpenAI client
-            batch_results = []
-            for messages in batch_chunk:
-                if verbose:
-                    logger.info(f"Sending batch request to {self.provider} model {self.model}...")
-                
-                for attempt in range(self.max_retries):
-                    try:
-                        response = self.openai_client.chat.completions.create(
-                            model=self.model,
-                            messages=messages,
-                            temperature=temperature,
-                            max_tokens=max_tokens,
-                            top_p=top_p
-                        )
-                        
-                        if verbose:
-                            logger.info(f"Received response from {self.provider}")
-                        
-                        # Log the full response in debug mode
-                        if debug_mode:
-                            if hasattr(response, 'model_dump'):
-                                logger.debug(f"Full response: {response.model_dump()}")
-                            else:
-                                logger.debug(f"Response type: {type(response)}")
-                                logger.debug(f"Response attributes: {dir(response)}")
-                        
-                        content = None
-                        
-                        # Method 1: Try standard OpenAI API response format
-                        try:
-                            if hasattr(response, 'choices') and response.choices is not None and len(response.choices) > 0:
-                                choice = response.choices[0]
-                                if hasattr(choice, 'message') and choice.message is not None:
-                                    if hasattr(choice.message, 'content') and choice.message.content is not None:
-                                        content = choice.message.content
-                        except Exception as e:
-                            if verbose:
-                                logger.info(f"Standard format extraction failed: {e}, trying alternative formats...")
-                        
-                        # Method 2: Llama API format
-                        if content is None:
-                            try:
-                                if hasattr(response, 'completion_message') and response.completion_message is not None:
-                                    completion = response.completion_message
-                                    # Handle dictionary case
-                                    if isinstance(completion, dict) and 'content' in completion:
-                                        content_obj = completion['content']
-                                        # Different Llama API response formats
-                                        if isinstance(content_obj, dict) and 'text' in content_obj:
-                                            content = content_obj['text']
-                                        elif isinstance(content_obj, str):
-                                            content = content_obj
-                            except Exception as e:
-                                if verbose:
-                                    logger.info(f"Llama API format extraction failed: {e}, trying dictionary access...")
-                        
-                        # Method 3: Try dictionary access for both formats
-                        if content is None:
-                            try:
-                                # Convert to dictionary if possible
-                                response_dict = None
-                                if hasattr(response, 'model_dump'):
-                                    response_dict = response.model_dump()
-                                elif hasattr(response, 'dict'):
-                                    response_dict = response.dict()
-                                elif hasattr(response, '__dict__'):
-                                    response_dict = response.__dict__
-                                elif isinstance(response, dict):
-                                    response_dict = response
-                                
-                                if response_dict is not None:
-                                    # Try Llama API format
-                                    if 'completion_message' in response_dict and response_dict['completion_message'] is not None:
-                                        comp = response_dict['completion_message']
-                                        if isinstance(comp, dict) and 'content' in comp:
-                                            content_obj = comp['content']
-                                            if isinstance(content_obj, dict) and 'text' in content_obj:
-                                                content = content_obj['text']
-                                            elif isinstance(content_obj, str):
-                                                content = content_obj
-                                    
-                                    # Try OpenAI format
-                                    if content is None and 'choices' in response_dict and response_dict['choices'] and len(response_dict['choices']) > 0:
-                                        choice = response_dict['choices'][0]
-                                        if isinstance(choice, dict) and 'message' in choice:
-                                            message = choice['message']
-                                            if isinstance(message, dict) and 'content' in message and message['content'] is not None:
-                                                content = message['content']
-                            except Exception as e:
-                                if verbose:
-                                    logger.info(f"Dictionary access failed: {e}")
-                        
-                        # If content is still None, print detailed debug info
-                        if content is None:
-                            if verbose or debug_mode:
-                                logger.error("Could not extract content from response using any known method")
-                                logger.error(f"Response: {response}")
-                                if isinstance(response, dict):
-                                    for k, v in response.items():
-                                        logger.error(f"Key: {k}, Value type: {type(v)}, Value: {v}")
-                                # Try to find any content-like fields
-                                all_attrs = dir(response)
-                                content_fields = [attr for attr in all_attrs if 'content' in attr.lower() or 'text' in attr.lower() or 'message' in attr.lower()]
-                                for field in content_fields:
-                                    try:
-                                        logger.error(f"Potential content field '{field}': {getattr(response, field, 'N/A')}")
-                                    except:
-                                        pass
-                            
-                            raise ValueError(f"Could not extract content from response using any known method")
-                        
-                        batch_results.append(content)
-                        break  # Success, break out of retry loop
-                        
-                    except Exception as e:
-                        if verbose:
-                            logger.error(f"{self.provider} API error (attempt {attempt+1}/{self.max_retries}): {str(e)}")
-                        
-                        if attempt == self.max_retries - 1:
-                            # On final attempt, append error message and move on
-                            error_msg = f"ERROR: {str(e)}"
-                            batch_results.append(error_msg)
-                        else:
-                            time.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
+            # Import asyncio here to avoid issues if not available
+            try:
+                import asyncio
+            except ImportError:
+                raise ImportError("The 'asyncio' package is required for batch processing. Please ensure you're using Python 3.7+.")
             
+            # Define async batch processing function
+            async def process_batch():
+                tasks = []
+                for messages in batch_chunk:
+                    task = self._process_message_async(
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        top_p=top_p,
+                        verbose=verbose,
+                        debug_mode=debug_mode
+                    )
+                    tasks.append(task)
+                
+                # Process all messages in the batch concurrently
+                return await asyncio.gather(*tasks)
+            
+            # Run the async batch processing
+            batch_results = asyncio.run(process_batch())
             results.extend(batch_results)
             
             # Small delay between batches to avoid rate limits

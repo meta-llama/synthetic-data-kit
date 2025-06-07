@@ -11,7 +11,15 @@ from typing import Optional, Dict, Any
 
 from synthetic_data_kit.models.llm_client import LLMClient
 from synthetic_data_kit.generators.qa_generator import QAGenerator
+from synthetic_data_kit.generators.vqa_generator import VQAGenerator
 from synthetic_data_kit.utils.config import get_generation_config
+
+def read_json(file_path):
+    # Read the file
+    with open(file_path, 'r', encoding='utf-8') as f:
+        document_text = f.read()
+    return document_text
+
 
 def process_file(
     file_path: str,
@@ -43,10 +51,6 @@ def process_file(
     # The reason for having this directory logic for now is explained in context.py
     os.makedirs(output_dir, exist_ok=True)
     
-    # Read the file
-    with open(file_path, 'r', encoding='utf-8') as f:
-        document_text = f.read()
-    
     # Initialize LLM client
     client = LLMClient(
         config_path=config_path,
@@ -64,6 +68,8 @@ def process_file(
     # Generate content based on type
     if content_type == "qa":
         generator = QAGenerator(client, config_path)
+
+        document_text = read_json(file_path)
         
         # Get num_pairs from args or config
         if num_pairs is None:
@@ -103,6 +109,8 @@ def process_file(
     
     elif content_type == "summary":
         generator = QAGenerator(client, config_path)
+
+        document_text = read_json(file_path)
         
         # Generate just the summary
         summary = generator.generate_summary(document_text)
@@ -123,6 +131,8 @@ def process_file(
         
         # Initialize the CoT generator
         generator = COTGenerator(client, config_path)
+
+        document_text = read_json(file_path)
         
         # Get num_examples from args or config
         if num_pairs is None:
@@ -159,6 +169,8 @@ def process_file(
         
         # Initialize the CoT generator
         generator = COTGenerator(client, config_path)
+
+        document_text = read_json(file_path)
         
         # Get max_examples from args or config
         max_examples = None
@@ -272,6 +284,19 @@ def process_file(
             
         except json.JSONDecodeError:
             raise ValueError(f"Failed to parse {file_path} as JSON. For cot-enhance, input must be a valid JSON file.")
-    
+    elif content_type == "vqa_add_reasoning":
+        # Initialize the VQA generator
+        generator = VQAGenerator(client, config_path)
+        
+        # Process the dataset
+        output_path = generator.process_dataset(
+            dataset_source=file_path,
+            output_dir=output_dir,
+            num_examples=num_pairs,
+            verbose=verbose
+        )
+        
+        return output_path
+
     else:
         raise ValueError(f"Unknown content type: {content_type}")
