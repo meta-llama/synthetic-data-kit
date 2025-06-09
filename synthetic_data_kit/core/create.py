@@ -6,8 +6,9 @@
 # Generate teh content: CoT/QA/Summary Datasets
 import os
 import json
+import logging
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Union
 
 import lance
 import pyarrow as pa
@@ -15,6 +16,10 @@ import pyarrow as pa
 from synthetic_data_kit.models.llm_client import LLMClient
 from synthetic_data_kit.generators.qa_generator import QAGenerator
 from synthetic_data_kit.utils.config import get_generation_config
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 def process_file(
     file_path: str,
@@ -25,6 +30,7 @@ def process_file(
     content_type: str = "qa",
     num_pairs: Optional[int] = None,
     verbose: bool = False,
+    multimodal: bool = False,
 ) -> str:
     """Process a file to generate content
     
@@ -36,13 +42,13 @@ def process_file(
         model: Model to use
         content_type: Type of content to generate (qa, summary, cot)
         num_pairs: Target number of QA pairs to generate
-        threshold: Quality threshold for filtering (1-10)
+        verbose: Whether to print verbose output
+        multimodal: Whether to process multimodal data (text + images)
     
     Returns:
         Path to the output file
     """
     # Create output directory if it doesn't exist
-    # The reason for having this directory logic for now is explained in context.py
     os.makedirs(output_dir, exist_ok=True)
     
     # Determine file type based on extension
@@ -51,18 +57,111 @@ def process_file(
     if file_extension == '.lance':
         dataset = lance.dataset(file_path)
         
-        # Extract text from the dataset
-        # Get the data
-        # TODO: Might be better to do this in batch or streaming
-        # mode for larger than memory datasets
-        batch = dataset.to_table(columns=['text']).to_pandas()
-        document_text = '\n'.join(batch['text'].tolist())
+        # Check if this is a multimodal dataset
+        is_multimodal = multimodal and 'text' in dataset.schema.names and 'image' in dataset.schema.names
+        
+        if is_multimodal:
+            if verbose:
+                logger.info(f"Processing multimodal dataset: {file_path}")
+            
+            # For multimodal datasets, process each text block separately
+            batch = dataset.to_table().to_pandas()
+            text_blocks = batch['text'].tolist()
+            images = batch['image'].tolist()
+            
+            # Filter out empty text blocks
+            valid_blocks = [(text, img) for text, img in zip(text_blocks, images) if text.strip()]
+            
+            if not valid_blocks:
+                raise ValueError("No valid text blocks found in the multimodal dataset")
+                
+            if verbose:
+                logger.info(f"Found {len(valid_blocks)} text blocks with images")
+                logger.info(f"First block text length: {len(valid_blocks[0][0])} characters")
+                logger.info(f"First block has image: {valid_blocks[0][1] is not None}")
+            
+            # Process each block and combine results
+            all_results = []
+            # Initialize LLM client for this block
+            client = LLMClient(
+                config_path=config_path,
+                api_base=api_base,
+                model_name=model
+            )
+            
+            for i, (text, image) in enumerate(valid_blocks):
+                if verbose:
+                    logger.info(f"Processing block {i+1}/{len(valid_blocks)}")
+                    logger.info(f"Block text length: {len(text)} characters")
+                    logger.info(f"Block has image: {image is not None}")
+                
+                # Generate content based on type
+                if content_type == "qa":
+                    generator = QAGenerator(client, config_path)
+                    block_result = generator.process_document(
+                        text,
+                        image,
+                        num_pairs=num_pairs or 5, 
+                        verbose=verbose
+                    )
+                    if verbose:
+                        logger.info(f"Generated {len(block_result)} QA pairs for block {i+1}")
+                    all_results.extend(block_result)
+                elif content_type == "summary":
+                    generator = QAGenerator(client, config_path)
+                    summary = generator.generate_summary(text)
+                    if verbose:
+                        logger.info(f"Generated summary of length {len(summary)} for block {i+1}")
+                    all_results.append({"summary": summary})
+                elif content_type == "cot":
+                    from synthetic_data_kit.generators.cot_generator import COTGenerator
+                    generator = COTGenerator(client, config_path)
+                    block_result = generator.process_document(
+                        text,
+                        image,
+                        num_examples=num_pairs or 2, 
+                        include_simple_steps=verbose
+                    )
+                    if verbose:
+                        logger.info(f"Generated {len(block_result.get('cot_examples', []))} CoT examples for block {i+1}")
+                    all_results.extend(block_result.get("cot_examples", []))
+                else:
+                    raise ValueError(f"Unsupported content type for multimodal data: {content_type}")
+            
+            # Save combined results
+            base_name = os.path.splitext(os.path.basename(file_path))[0]
+            output_path = os.path.join(output_dir, f"{base_name}_{content_type}_multimodal.json")
+            
+            if verbose:
+                logger.info(f"Saving {len(all_results)} results to {output_path}")
+            
+            with open(output_path, 'w', encoding='utf-8') as f:
+                json.dump(all_results, f, indent=2)
+            
+            return output_path
+            
+        else:
+            # Text-only mode: combine all text into one document
+            if not 'text' in dataset.schema.names:
+                raise ValueError(f"Could not find text column in Lance dataset: {file_path}")
+
+            batch = dataset.to_table(columns=['text']).to_pandas()
+            document_text = '\n'.join(batch['text'].tolist())
+            
+            if verbose:
+                logger.info(f"Processing text-only dataset: {file_path}")
+                logger.info(f"Total text length: {len(document_text)} characters")
 
     else:
         # Default behavior for text files
         with open(file_path, 'r', encoding='utf-8') as f:
             document_text = f.read()
+        
+        if verbose:
+            logger.info(f"Processing text file: {file_path}")
+            logger.info(f"Total text length: {len(document_text)} characters")
     
+    # For text-only processing, continue with existing logic
     # Initialize LLM client
     client = LLMClient(
         config_path=config_path,
@@ -83,6 +182,9 @@ def process_file(
             generation_config = get_generation_config(config)
             num_pairs = generation_config.get("num_pairs", 25)
         
+        if verbose:
+            logger.info(f"Generating {num_pairs} QA pairs")
+        
         # Process document
         result = generator.process_document(
             document_text,
@@ -92,43 +194,34 @@ def process_file(
         
         # Save output
         output_path = os.path.join(output_dir, f"{base_name}_qa_pairs.json")
-        print(f"Saving result to {output_path}")
         
-        # First, let's save a basic test file to confirm the directory is writable
-        test_path = os.path.join(output_dir, "test_write.json")
-        try:
-            with open(test_path, 'w', encoding='utf-8') as f:
-                f.write('{"test": "data"}')
-            print(f"Successfully wrote test file to {test_path}")
-        except Exception as e:
-            print(f"Error writing test file: {e}")
-            
-        # Now save the actual result
-        try:
-            with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(result, f, indent=2)
-            print(f"Successfully wrote result to {output_path}")
-        except Exception as e:
-            print(f"Error writing result file: {e}")
+        if verbose:
+            logger.info(f"Saving {len(result)} QA pairs to {output_path}")
+        
+        with open(output_path, 'w', encoding='utf-8') as f:
+            json.dump(result, f, indent=2)
         
         return output_path
     
     elif content_type == "summary":
         generator = QAGenerator(client, config_path)
         
+        if verbose:
+            logger.info("Generating summary")
+        
         # Generate just the summary
         summary = generator.generate_summary(document_text)
         
         # Save output
         output_path = os.path.join(output_dir, f"{base_name}_summary.json")
+        
+        if verbose:
+            logger.info(f"Saving summary of length {len(summary)} to {output_path}")
+        
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump({"summary": summary}, f, indent=2)
         
         return output_path
-    
-    # So there are two separate categories of CoT
-    # Simply CoT maps to "Hey I want CoT being generated"
-    # CoT-enhance maps to "Please enhance my dataset with CoT"
     
     elif content_type == "cot":
         from synthetic_data_kit.generators.cot_generator import COTGenerator
@@ -142,15 +235,22 @@ def process_file(
             generation_config = get_generation_config(config)
             num_pairs = generation_config.get("num_pairs", 5)
         
+        if verbose:
+            logger.info(f"Generating {num_pairs} CoT examples")
+        
         # Process document to generate CoT examples
         result = generator.process_document(
             document_text,
             num_examples=num_pairs,
-            include_simple_steps=verbose  # More detailed if verbose is enabled
+            include_simple_steps=verbose
         )
         
         # Save output
         output_path = os.path.join(output_dir, f"{base_name}_cot_examples.json")
+        
+        if verbose:
+            logger.info(f"Saving {len(result.get('cot_examples', []))} CoT examples to {output_path}")
+        
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(result, f, indent=2)
         
@@ -158,10 +258,10 @@ def process_file(
             # Print some example content
             if result.get("cot_examples") and len(result.get("cot_examples", [])) > 0:
                 first_example = result["cot_examples"][0]
-                print("\nFirst CoT Example:")
-                print(f"Question: {first_example.get('question', '')}")
-                print(f"Reasoning (first 100 chars): {first_example.get('reasoning', '')[:100]}...")
-                print(f"Answer: {first_example.get('answer', '')}")
+                logger.info("\nFirst CoT Example:")
+                logger.info(f"Question: {first_example.get('question', '')}")
+                logger.info(f"Reasoning (first 100 chars): {first_example.get('reasoning', '')[:100]}...")
+                logger.info(f"Answer: {first_example.get('answer', '')}")
         
         return output_path
         
@@ -196,7 +296,7 @@ def process_file(
                 is_single_conversation = False
             
             if verbose:
-                print(f"Found {len(conversations)} conversation(s) to enhance")
+                logger.info(f"Found {len(conversations)} conversation(s) to enhance")
             
             # Process each conversation
             enhanced_conversations = []
@@ -208,7 +308,7 @@ def process_file(
                     
                     # Validate messages format
                     if not isinstance(conv_messages, list):
-                        print(f"Warning: conversations field is not a list in item {i}, skipping")
+                        logger.warning(f"conversations field is not a list in item {i}, skipping")
                         enhanced_conversations.append(conversation)  # Keep original
                         continue
                     
@@ -226,6 +326,9 @@ def process_file(
             # Save enhanced conversations
             output_path = os.path.join(output_dir, f"{base_name}_enhanced.json")
             
+            if verbose:
+                logger.info(f"Saving {len(enhanced_conversations)} enhanced conversations to {output_path}")
+            
             with open(output_path, 'w', encoding='utf-8') as f:
                 if is_single_conversation and len(enhanced_conversations) == 1:
                     # Save the single conversation
@@ -235,7 +338,7 @@ def process_file(
                     json.dump(enhanced_conversations, f, indent=2)
             
             if verbose:
-                print(f"Enhanced {len(enhanced_conversations)} conversation(s)")
+                logger.info(f"Enhanced {len(enhanced_conversations)} conversation(s)")
                 
             return output_path
             

@@ -88,18 +88,16 @@ class PDFParser:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
         if isinstance(content, str):
-            # Text-only mode
             data = [pa.array([content])]
             names = ['text']
             table = pa.Table.from_arrays(data, names=names)
         elif isinstance(content, list):
-            # Multimodal mode
             texts = pa.array([item['text'] for item in content], type=pa.string())
             # Handle potential None values for images before creating the array
             images_data = []
             for item in content:
-                img = item.get('image') # Use .get() for safety
-                images_data.append(img if img is not None else None) # Explicitly append None
+                img = item.get('image')
+                images_data.append(img if img is not None else None)
             images = pa.array(images_data, type=pa.binary())
             
             schema = pa.schema([

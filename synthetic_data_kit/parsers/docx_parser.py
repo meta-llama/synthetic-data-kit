@@ -71,12 +71,10 @@ class DOCXParser:
                 # Text-only mode: combine all content
                 text_content = []
                 
-                # Extract text from paragraphs
                 for para in doc.paragraphs:
                     if para.text.strip():
                         text_content.append(para.text)
                 
-                # Extract text from tables
                 for table in doc.tables:
                     for row in table.rows:
                         for cell in row.cells:
@@ -91,7 +89,6 @@ class DOCXParser:
                 current_image = None
                 image_count = 0
                 
-                # Process paragraphs
                 for para in doc.paragraphs:
                     if not para.text.strip():
                         continue
@@ -119,7 +116,6 @@ class DOCXParser:
                             current_block = []
                         current_image = para_image
                     
-                    # Add the paragraph text
                     current_block.append(para.text)
                 
                 # Process tables
@@ -157,12 +153,10 @@ class DOCXParser:
         import pyarrow as pa
         
         if isinstance(content, str):
-            # Text-only mode
             data = [pa.array([content])]
             names = ['text']
             table = pa.Table.from_arrays(data, names=names)
         elif isinstance(content, list):
-            # Multimodal mode
             texts = pa.array([item['text'] for item in content], type=pa.string())
             images_data = []
             for item in content:

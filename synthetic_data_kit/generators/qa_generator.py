@@ -268,10 +268,14 @@ class QAGenerator:
     
     def process_document(self, 
                        document_text: str, 
+                       document_image: Optional[bytes] = None,
                        num_pairs: int = 25, 
                        verbose: bool = False) -> Dict[str, Any]:
         """Process a document to generate QA pairs without rating"""
         # Set the verbose environment variable
+
+        ##### TODO: Support image processing 
+        
         if verbose:
             os.environ['SDK_VERBOSE'] = 'true'
         else:

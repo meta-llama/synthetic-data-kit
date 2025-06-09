@@ -61,19 +61,6 @@ class HTMLParser:
                     file_url = Path(file_path).absolute().as_uri()
                     page.goto(file_url, wait_until='networkidle')
                 
-                # Check for client-side error
-                error_text = page.evaluate("""
-                    () => {
-                        const bodyText = document.body.textContent;
-                        if (bodyText.includes('Application error: a client-side exception has occurred')) {
-                            return bodyText;
-                        }
-                        return null;
-                    }
-                """)
-                
-                if error_text:
-                    raise ValueError("Page contains client-side error")
                 
                 # Wait for images to load
                 logger.info("Waiting for images to load...")
@@ -130,7 +117,6 @@ class HTMLParser:
             logger.error(f"Error processing HTML: {str(e)}")
             raise
         finally:
-            # Clean up temporary PDF file
             try:
                 os.unlink(temp_pdf_path)
                 logger.info("Temporary PDF file cleaned up")

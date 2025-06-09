@@ -130,6 +130,9 @@ def create(
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed output"
     ),
+    multimodal: bool = typer.Option(
+        False, "--multimodal", help="Process multimodal data (text + images)"
+    ),
 ):
     """
     Generate content from text using local LLM inference.
@@ -179,7 +182,8 @@ def create(
                 model,
                 content_type,
                 num_pairs,
-                verbose
+                verbose,
+                multimodal
             )
         if output_path:
             console.print(f" Content saved to [bold]{output_path}[/bold]", style="green")

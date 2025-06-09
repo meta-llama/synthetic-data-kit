@@ -133,8 +133,15 @@ class COTGenerator:
         
         return enhanced_conversations
     
-    def process_document(self, document_text: str, num_examples: int = 5, include_simple_steps: bool = False) -> Dict[str, Any]:
+    def process_document(self, 
+                        document_text: str, 
+                        document_image: Optional[bytes] = None,
+                        num_examples: int = 5, 
+                        include_simple_steps: bool = False) -> Dict[str, Any]:
         """Process a document to generate CoT examples"""
+    
+        #### TODO -- support image processing
+
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
         # Set the verbose environment variable

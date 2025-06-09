@@ -57,27 +57,23 @@ class PPTParser:
                 slide_text_parts = []
                 slide_text_parts.append(f"--- Slide {i+1} ---")
                 
-                # Get slide title
                 if slide.shapes.title and slide.shapes.title.has_text_frame and slide.shapes.title.text_frame.text:
                     slide_text_parts.append(f"Title: {slide.shapes.title.text_frame.text}")
 
-                # Get text from shapes
                 for shape in slide.shapes:
                     if shape.has_text_frame and shape.text_frame.text:
                         slide_text_parts.append(shape.text_frame.text)
                 
                 slide_text_content = "\n".join(slide_text_parts)
 
-                # Extract first image from the slide
                 first_image_bytes = None
                 for shape in slide.shapes:
                     if shape.shape_type == MSO_SHAPE_TYPE.PICTURE:
                         try:
                             if hasattr(shape, 'image') and hasattr(shape.image, 'blob'):
                                 first_image_bytes = shape.image.blob
-                                break # Found the first image
+                                break
                         except Exception:
-                             # In case of issues accessing blob, ensure it's None
                             first_image_bytes = None
                             break 
                 
