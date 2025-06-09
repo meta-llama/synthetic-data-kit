@@ -31,7 +31,7 @@ class QAGenerator:
         self.generation_config = get_generation_config(self.config)
         self.curate_config = get_curate_config(self.config)
     
-    def generate_summary(self, document_text: str) -> str:
+    def generate_summary(self, document_text: str, document_image: Optional[str] = None) -> str:
         """Generate a summary of the document"""
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         if verbose:
@@ -41,9 +41,20 @@ class QAGenerator:
         prompt = get_prompt(self.config, "summary")
         
         messages = [
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": document_text}
+            {"role": "system", "content": prompt}
         ]
+        
+        # Add image if present
+        if document_image:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": document_text},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{document_image}"}}
+                ]
+            })
+        else:
+            messages.append({"role": "user", "content": document_text})
         
         summary = self.client.chat_completion(
             messages, 
@@ -56,7 +67,8 @@ class QAGenerator:
     
     def generate_qa_pairs(self, 
                         document_text: str, 
-                        summary: str, 
+                        summary: str,
+                        document_image: Optional[str] = None,
                         num_pairs: int = 25) -> List[Dict[str, str]]:
         """Generate QA pairs from the document using batched processing"""
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
@@ -98,6 +110,19 @@ class QAGenerator:
             messages = [
                 {"role": "system", "content": qa_prompt}
             ]
+            
+            # Add image if present
+            if document_image:
+                messages.append({
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": chunk},
+                        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{document_image}"}}
+                    ]
+                })
+            else:
+                messages.append({"role": "user", "content": chunk})
+                
             all_messages.append(messages)
         
         print(f"Processing {len(chunks)} chunks to generate QA pairs...")
@@ -268,26 +293,21 @@ class QAGenerator:
     
     def process_document(self, 
                        document_text: str, 
-                       document_image: Optional[bytes] = None,
+                       document_image: Optional[str] = None,
                        num_pairs: int = 25, 
                        verbose: bool = False) -> Dict[str, Any]:
         """Process a document to generate QA pairs without rating"""
         # Set the verbose environment variable
-
-        ##### TODO: Support image processing 
-        if document_image:
-            #### TODO: For debugging..remove this 
-            print("recieved multimodal data")
         if verbose:
             os.environ['SDK_VERBOSE'] = 'true'
         else:
             os.environ['SDK_VERBOSE'] = 'false'
         
         # Generate summary
-        summary = self.generate_summary(document_text)
+        summary = self.generate_summary(document_text, document_image)
         
         # Generate QA pairs
-        qa_pairs = self.generate_qa_pairs(document_text, summary, num_pairs=num_pairs)
+        qa_pairs = self.generate_qa_pairs(document_text, summary, document_image, num_pairs=num_pairs)
         
         # Prepare result - no rating at this stage
         result = {

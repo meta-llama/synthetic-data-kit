@@ -52,7 +52,7 @@ class COTGenerator:
                 print(f"Error parsing output: {e}")
             return None
     
-    def generate_cot_examples(self, document_text: str, num_examples: int = 5) -> List[Dict[str, Any]]:
+    def generate_cot_examples(self, document_text: str, document_image: Optional[str] = None, num_examples: int = 5) -> List[Dict[str, Any]]:
         """Generate chain-of-thought reasoning examples"""
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
@@ -73,6 +73,19 @@ class COTGenerator:
             print(f"Generating {num_examples} CoT examples...")
         
         messages = [{"role": "system", "content": prompt}]
+        
+        # Add image if present
+        if document_image:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": document_text},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{document_image}"}}
+                ]
+            })
+        else:
+            messages.append({"role": "user", "content": document_text})
+        
         response = self.client.chat_completion(
             messages, 
             temperature=temperature,
@@ -135,13 +148,10 @@ class COTGenerator:
     
     def process_document(self, 
                         document_text: str, 
-                        document_image: Optional[bytes] = None,
+                        document_image: Optional[str] = None,
                         num_examples: int = 5, 
                         include_simple_steps: bool = False) -> Dict[str, Any]:
         """Process a document to generate CoT examples"""
-    
-        #### TODO -- support image processing
-
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
         # Set the verbose environment variable
@@ -151,14 +161,26 @@ class COTGenerator:
             os.environ['SDK_VERBOSE'] = 'false'
         
         # Generate summary first (helpful context)
-        summary = self.client.chat_completion(
-            [{"role": "system", "content": "Summarize this document in 2-3 sentences."},
-             {"role": "user", "content": document_text}], 
-            temperature=0.1
-        )
+        messages = [
+            {"role": "system", "content": "Summarize this document in 2-3 sentences."}
+        ]
+        
+        # Add image if present
+        if document_image:
+            messages.append({
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": document_text},
+                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{document_image}"}}
+                ]
+            })
+        else:
+            messages.append({"role": "user", "content": document_text})
+        
+        summary = self.client.chat_completion(messages, temperature=0.1)
         
         # Generate CoT examples
-        examples = self.generate_cot_examples(document_text, num_examples)
+        examples = self.generate_cot_examples(document_text, document_image, num_examples)
         
         # Format into simple conversation format as well
         conversations = []

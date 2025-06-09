@@ -58,16 +58,19 @@ format:
 prompts:
   # Summary generation prompt
   summary: |
-    Summarize this document in 3-5 sentences, focusing on the main topic and key concepts.
+    Summarize this content in 3-5 sentences, focusing on the main topic and key concepts.
+    If an image is provided, include relevant details from the image in your summary.
+    Ensure your summary captures both textual and visual information comprehensively.
   
   # QA pair generation prompt
   qa_generation: |
-    Create {num_pairs} question-answer pairs from this text for LLM training.
+    Create {num_pairs} question-answer pairs from this content for LLM training.
     
     Rules:
-    1. Questions must be about important facts in the text
-    2. Answers must be directly supported by the text
-    3. Return JSON format only:
+    1. Questions must be about important facts in the text and/or image
+    2. Answers must be directly supported by the content
+    3. If an image is provided, include questions about visual elements and their relationship to the text
+    4. Return JSON format only:
     
     [
       {{
@@ -80,7 +83,7 @@ prompts:
       }}
     ]
     
-    Text:
+    Content:
     {text}
   
   # QA pair rating prompt
@@ -111,18 +114,23 @@ prompts:
     
   # Chain of Thought generation prompt
   cot_generation: |
-    Create {num_examples} complex reasoning examples from this text that demonstrate chain-of-thought thinking.
+    Create {num_examples} complex reasoning examples from this content that demonstrate chain-of-thought thinking.
     
     Each example should have:
     1. A challenging question that requires step-by-step reasoning
     2. Detailed reasoning steps that break down the problem
     3. A concise final answer
     
+    If an image is provided:
+    - Include questions that require analyzing both text and visual elements
+    - Consider spatial relationships, visual details, and their connection to the text
+    - Ensure reasoning steps address both textual and visual aspects
+    
     Return JSON format only:
     
     [
       {{
-        "question": "Complex question about the text?",
+        "question": "Complex question about the content?",
         "reasoning": "Step 1: First, I need to consider...\nStep 2: Then, I analyze...\nStep 3: Finally, I can conclude...",
         "answer": "Final answer based on the reasoning."
       }},
@@ -133,7 +141,7 @@ prompts:
       }}
     ]
     
-    Text:
+    Content:
     {text}
   
   # Chain of Thought enhancement prompt
