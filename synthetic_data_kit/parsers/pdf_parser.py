@@ -33,45 +33,50 @@ class PDFParser:
             bytes from that page, or None).
         """
         try:
-            from pdfminer.high_level import extract_text, extract_pages
+            from PyPDF2 import PdfReader
         except ImportError:
-            raise ImportError("pdfminer.six is required for PDF parsing. Install it with: pip install pdfminer.six")
+            raise ImportError("PyPDF2 is required for PDF parsing. Install it with: pip install PyPDF2")
 
-        if not multimodal:
-            return extract_text(file_path)
-        else:
-            output_data = []
-            resource_manager = PDFResourceManager(caching=True)
+        try:
+            reader = PdfReader(file_path)
             
-            for page_layout in extract_pages(file_path):
-                # Extract text from the page
-                text_output = io.StringIO()
-                converter = TextConverter(resource_manager, text_output, laparams=LAParams())
-                interpreter = PDFPageInterpreter(resource_manager, converter)
-                interpreter.process_page(page_layout)
-                page_text = text_output.getvalue()
-                converter.close()
-                text_output.close()
-
-                # Extract first image from the page
-                first_image_bytes = None
-                for element in page_layout:
-                    if isinstance(element, LTImage):
-                        try:
-                            # Accessing the stream and getting raw data
-                            if hasattr(element, 'stream') and hasattr(element.stream, 'get_rawdata'):
-                                first_image_bytes = element.stream.get_rawdata()
-                                break # Found the first image
-                        except Exception:
-                            # Handle cases where image data might be corrupted or inaccessible
-                            first_image_bytes = None # Ensure it's None if extraction fails
-                            break 
+            if not multimodal:
+                # Text-only mode: combine all pages
+                text = ""
+                for page in reader.pages:
+                    text += page.extract_text() + "\n"
+                return text.strip()
+            else:
+                # Multimodal mode: process page by page
+                output_data = []
                 
-                output_data.append({
-                    'text': page_text,
-                    'image': first_image_bytes
-                })
-            return output_data
+                for page in reader.pages:
+                    # Extract text
+                    page_text = page.extract_text()
+                    
+                    # Extract first image
+                    first_image_bytes = None
+                    if '/Resources' in page and '/XObject' in page['/Resources']:
+                        xObject = page['/Resources']['/XObject'].get_object()
+                        for obj in xObject:
+                            if xObject[obj]['/Subtype'] == '/Image':
+                                try:
+                                    first_image_bytes = xObject[obj].get_data()
+                                    break
+                                except Exception as e:
+                                    print(f"Warning: Error extracting image: {str(e)}")
+                                    continue
+                    
+                    output_data.append({
+                        'text': page_text,
+                        'image': first_image_bytes
+                    })
+                
+                return output_data
+                
+        except Exception as e:
+            print(f"Error processing PDF: {str(e)}")
+            raise
 
     def save(self, content: any, output_path: str) -> None:
         """Save the extracted content to a Lance file.

@@ -52,24 +52,12 @@ def process_file(
         dataset = lance.dataset(file_path)
         
         # Extract text from the dataset
-        if 'text' in dataset.schema.names:
-            # Get the data
-            # TODO: Might be better to do this in batch or streaming
-            # mode for larger than memory datasets
-            batch = dataset.to_table(columns=['text']).to_pandas()
-            document_text = '\n'.join(batch['text'].tolist())
-        else:
-            # Try to find a suitable text column
-            text_columns = [col for col in dataset.schema.names 
-                           if dataset.schema.field(col).type == pa.string()]
-            
-            if text_columns:
-                batch = dataset.to_table(columns=[text_columns[0]]).to_pandas()
-                document_text = '\n'.join(batch[text_columns[0]].tolist())
-                if verbose:
-                    print(f"Using column '{text_columns[0]}' from Lance dataset")
-            else:
-                raise ValueError(f"Could not find text column in Lance dataset: {file_path}")
+        # Get the data
+        # TODO: Might be better to do this in batch or streaming
+        # mode for larger than memory datasets
+        batch = dataset.to_table(columns=['text']).to_pandas()
+        document_text = '\n'.join(batch['text'].tolist())
+
     else:
         # Default behavior for text files
         with open(file_path, 'r', encoding='utf-8') as f:

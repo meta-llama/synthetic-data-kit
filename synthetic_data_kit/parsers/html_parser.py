@@ -6,21 +6,20 @@
 # HTML Parsers
 
 import os
-import requests
-import lance
-import pyarrow as pa
-from typing import Dict, Any
-from urllib.parse import urlparse
-
-import base64
-from urllib.parse import urljoin
+import tempfile
+import logging
 from pathlib import Path
+from .pdf_parser import PDFParser
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 class HTMLParser:
-    """Parser for HTML files and web pages"""
+    """Parser for HTML files and web pages using PDF conversion"""
 
     def parse(self, file_path: str, multimodal: bool = False) -> any:
-        """Parse an HTML file or URL.
+        """Parse an HTML file or URL by converting to PDF first.
         
         Args:
             file_path: Path to the HTML file or URL.
@@ -31,74 +30,112 @@ class HTMLParser:
             If multimodal is False, returns a string with all extracted text.
             If multimodal is True, returns a list of dictionaries, where each
             dictionary has 'text' and 'image' keys.
+            
+        Raises:
+            ValueError: If the page contains client-side errors.
         """
         try:
-            from bs4 import BeautifulSoup
+            from playwright.sync_api import sync_playwright
         except ImportError:
-            raise ImportError("beautifulsoup4 is required for HTML parsing. Install it with: pip install beautifulsoup4")
+            raise ImportError("playwright is required for HTML parsing. Install it with: pip install playwright && playwright install chromium")
 
-        base_url = None
-        if file_path.startswith(('http://', 'https://')):
-            base_url = file_path
-            response = requests.get(file_path)
-            response.raise_for_status()
-            html_content = response.text
-        else:
-            # For local files, the base_url is the directory path
-            base_url = Path(file_path).parent.as_uri() + '/' # Ensure it acts like a URL base
-            with open(file_path, 'r', encoding='utf-8') as f:
-                html_content = f.read()
+        logger.info(f"Starting to parse: {file_path}")
         
-        soup = BeautifulSoup(html_content, 'html.parser')
-
-        if not multimodal:
-            # Remove script and style elements
-            for script_or_style in soup(['script', 'style']):
-                script_or_style.extract()
-            text = soup.get_text()
-            lines = (line.strip() for line in text.splitlines())
-            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-            return '\n'.join(chunk for chunk in chunks if chunk)
-        else:
-            data_entries = []
+        # Create a temporary PDF file
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
+            temp_pdf_path = temp_pdf.name
             
-            # Text tags to consider
-            text_tags = ['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'span', 'blockquote']
-            for tag_name in text_tags:
-                for tag in soup.find_all(tag_name):
-                    text = tag.get_text(separator=' ', strip=True)
-                    if text:
-                        data_entries.append({'text': text, 'image': None})
-            
-            # Image tags
-            for img_tag in soup.find_all('img'):
-                alt_text = img_tag.get('alt', '')
-                src = img_tag.get('src')
-                image_bytes = None
-
-                if src:
-                    try:
-                        if src.startswith('data:image'):
-                            # Data URI
-                            header, encoded = src.split(',', 1)
-                            image_bytes = base64.b64decode(encoded)
-                        elif src.startswith(('http://', 'https://')):
-                            # Absolute URL
-                            img_response = requests.get(src, stream=True, timeout=5)
-                            img_response.raise_for_status()
-                            image_bytes = img_response.content
-                        else:
-                            # Relative URL
-                            full_url = urljoin(base_url, src)
-                            img_response = requests.get(full_url, stream=True, timeout=5)
-                            img_response.raise_for_status()
-                            image_bytes = img_response.content
-                    except Exception: # Catch requests errors, base64 errors, etc.
-                        image_bytes = None 
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page()
                 
-                data_entries.append({'text': alt_text, 'image': image_bytes})
+                # Set viewport to a large size to ensure all content is visible
+                page.set_viewport_size({"width": 1920, "height": 1080})
+                
+                if file_path.startswith(('http://', 'https://')):
+                    logger.info("Loading URL...")
+                    page.goto(file_path, wait_until='networkidle')
+                else:
+                    logger.info("Loading local file...")
+                    file_url = Path(file_path).absolute().as_uri()
+                    page.goto(file_url, wait_until='networkidle')
+                
+                # Check for client-side error
+                error_text = page.evaluate("""
+                    () => {
+                        const bodyText = document.body.textContent;
+                        if (bodyText.includes('Application error: a client-side exception has occurred')) {
+                            return bodyText;
+                        }
+                        return null;
+                    }
+                """)
+                
+                if error_text:
+                    raise ValueError("Page contains client-side error")
+                
+                # Wait for images to load
+                logger.info("Waiting for images to load...")
+                page.wait_for_load_state('domcontentloaded')
+                
+                # TODO - Get rid of this section -- redundant 
+                logger.info("Scrolling through page to trigger lazy loading...")
+                page.evaluate("""
+                    () => {
+                        return new Promise((resolve) => {
+                            let totalHeight = 0;
+                            const distance = 100;
+                            const timer = setInterval(() => {
+                                const scrollHeight = document.body.scrollHeight;
+                                window.scrollBy(0, distance);
+                                totalHeight += distance;
+                                
+                                if(totalHeight >= scrollHeight){
+                                    clearInterval(timer);
+                                    resolve();
+                                }
+                            }, 100);
+                        });
+                    }
+                """)
+                
+                page.wait_for_timeout(2000)  # Wait 2 seconds for any remaining images
+                
+                logger.info("Converting to PDF...")
+                # Generate PDF with better quality settings
+                page.pdf(
+                    path=temp_pdf_path,
+                    format='A4',
+                    print_background=True,
+                    prefer_css_page_size=True,
+                    scale=1.0,  # Ensure no scaling
+                    margin={
+                        'top': '20px',
+                        'right': '20px',
+                        'bottom': '20px',
+                        'left': '20px'
+                    }
+                )
+                browser.close()
+                
+            logger.info("PDF conversion completed, now parsing PDF...")
+            # Use the PDF parser to process the converted file
+            pdf_parser = PDFParser()
+            result = pdf_parser.parse(temp_pdf_path, multimodal=multimodal)
             
-            return data_entries
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error processing HTML: {str(e)}")
+            raise
+        finally:
+            # Clean up temporary PDF file
+            try:
+                os.unlink(temp_pdf_path)
+                logger.info("Temporary PDF file cleaned up")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary PDF file: {str(e)}")
 
     def save(self, content: any, output_path: str) -> None:
         """Save the extracted content to a Lance file.
@@ -107,29 +144,10 @@ class HTMLParser:
             content: Extracted content (string or list of dicts)
             output_path: Path to save the Lance file
         """
+        logger.info(f"Saving content to {output_path}...")
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
-        if isinstance(content, str):
-            # Text-only mode
-            data = [pa.array([content])]
-            names = ['text']
-            table = pa.Table.from_arrays(data, names=names)
-        elif isinstance(content, list):
-            # Multimodal mode
-            texts = pa.array([item['text'] for item in content], type=pa.string())
-            # Handle potential None values for images and ensure bytes for PyArrow binary type
-            images_data = []
-            for item in content:
-                img_bytes = item.get('image')
-                images_data.append(img_bytes if isinstance(img_bytes, bytes) else None)
-            images = pa.array(images_data, type=pa.binary())
-            
-            schema = pa.schema([
-                ('text', pa.string()),
-                ('image', pa.binary())
-            ])
-            table = pa.Table.from_arrays([texts, images], schema=schema)
-        else:
-            raise ValueError("Unsupported content type for saving.")
-            
-        lance.write_dataset(table, output_path, mode="overwrite")
+        # Use the PDF parser's save method since we're using the same data structure
+        pdf_parser = PDFParser()
+        pdf_parser.save(content, output_path)
+        logger.info("Save completed successfully")
