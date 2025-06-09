@@ -275,7 +275,9 @@ class QAGenerator:
         # Set the verbose environment variable
 
         ##### TODO: Support image processing 
-        
+        if document_image:
+            #### TODO: For debugging..remove this 
+            print("recieved multimodal data")
         if verbose:
             os.environ['SDK_VERBOSE'] = 'true'
         else:
