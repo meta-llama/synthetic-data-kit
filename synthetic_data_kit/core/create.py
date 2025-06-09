@@ -7,6 +7,7 @@
 import os
 import json
 import logging
+import base64
 from pathlib import Path
 from typing import Optional, Dict, Any, List, Union
 
@@ -20,6 +21,19 @@ from synthetic_data_kit.utils.config import get_generation_config
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+def _convert_image_to_base64(image_bytes: bytes) -> str:
+    """Convert image bytes to base64 string.
+    
+    Args:
+        image_bytes: Raw image bytes
+        
+    Returns:
+        Base64 encoded string of the image
+    """
+    if image_bytes is None:
+        return None
+    return base64.b64encode(image_bytes).decode('utf-8')
 
 def process_file(
     file_path: str,
@@ -95,12 +109,15 @@ def process_file(
                     logger.info(f"Block text length: {len(text)} characters")
                     logger.info(f"Block has image: {image is not None}")
                 
+                # Convert image to base64 if present
+                image_base64 = _convert_image_to_base64(image) if image is not None else None
+                
                 # Generate content based on type
                 if content_type == "qa":
                     generator = QAGenerator(client, config_path)
                     block_result = generator.process_document(
                         text,
-                        image,
+                        image_base64,
                         num_pairs=num_pairs or 5, 
                         verbose=verbose
                     )
@@ -118,7 +135,7 @@ def process_file(
                     generator = COTGenerator(client, config_path)
                     block_result = generator.process_document(
                         text,
-                        image,
+                        image_base64,
                         num_examples=num_pairs or 2, 
                         include_simple_steps=verbose
                     )
