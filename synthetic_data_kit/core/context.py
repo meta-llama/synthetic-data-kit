@@ -33,6 +33,7 @@ class AppContext:
             "data/docx",
             "data/ppt",
             "data/txt",
+            "data/java"
             "data/output",
             "data/generated",
             "data/cleaned",
