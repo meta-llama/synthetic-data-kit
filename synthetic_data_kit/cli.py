@@ -271,7 +271,7 @@ def create(
                 content_type,
                 num_pairs,
                 verbose,
-                multimodal
+                multimodal,
                 provider=provider  # Pass the provider parameter
             )
         if output_path:

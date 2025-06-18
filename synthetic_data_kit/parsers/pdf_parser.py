@@ -14,6 +14,7 @@ from pdfminer.converter import TextConverter
 from pdfminer.layout import LAParams, LTImage
 from pdfminer.pdfinterp import PDFPageInterpreter, PDFResourceManager
 from pdfminer.pdfpage import PDFPage
+from PIL import Image
 
 class PDFParser:
     """Parser for PDF documents"""
@@ -61,7 +62,17 @@ class PDFParser:
                         for obj in xObject:
                             if xObject[obj]['/Subtype'] == '/Image':
                                 try:
-                                    first_image_bytes = xObject[obj].get_data()
+                                    img_obj = xObject[obj]
+                                    data = img_obj.get_data()
+                                    if '/Filter' in img_obj:
+                                        if img_obj['/Filter'] == '/DCTDecode':
+                                            first_image_bytes = data
+                                        elif img_obj['/Filter'] == '/FlateDecode':
+                                            first_image_bytes = self.extract_image_from_pdf_image_obj(img_obj)
+                                        else:
+                                            print(f"Unsupported image filter: {img_obj['/Filter']}")
+                                    else:
+                                        print("No filter found for image")
                                     break
                                 except Exception as e:
                                     print(f"Warning: Error extracting image: {str(e)}")
@@ -109,3 +120,34 @@ class PDFParser:
             raise ValueError("Unsupported content type for saving.")
             
         lance.write_dataset(table, output_path, mode="overwrite")
+
+    def extract_image_from_pdf_image_obj(self, img_obj):
+        data = img_obj.get_data()
+        width = img_obj['/Width']
+        height = img_obj['/Height']
+        color_space = img_obj['/ColorSpace']
+        bits_per_component = img_obj['/BitsPerComponent']
+
+        # Handle color space
+        if isinstance(color_space, list) and color_space[0] == '/ICCBased':
+            # Try to treat as RGB (most common)
+            print("ICCBased color space detected, treating as RGB for extraction.")
+            mode = "RGB"
+        elif color_space == '/DeviceRGB':
+            mode = "RGB"
+        elif color_space == '/DeviceGray':
+            mode = "L"
+        else:
+            print(f"Unsupported color space: {color_space}")
+            return None
+
+        # Create image from raw bytes
+        try:
+            image = Image.frombytes(mode, (width, height), data)
+            # Save to PNG bytes
+            output = io.BytesIO()
+            image.save(output, format="PNG")
+            return output.getvalue()
+        except Exception as e:
+            print(f"Error reconstructing image: {e}")
+            return None

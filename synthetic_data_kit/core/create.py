@@ -76,10 +76,8 @@ def process_file(
     
     # Determine file type based on extension
     file_extension = os.path.splitext(file_path)[1].lower()
-    
     if file_extension == '.lance':
         dataset = lance.dataset(file_path)
-        
         # Check if this is a multimodal dataset
         is_multimodal = multimodal and 'text' in dataset.schema.names and 'image' in dataset.schema.names
         
@@ -92,8 +90,11 @@ def process_file(
             text_blocks = batch['text'].tolist()
             images = batch['image'].tolist()
             
+
             # Filter out empty text blocks
             valid_blocks = [(text, img) for text, img in zip(text_blocks, images) if text.strip()]
+
+            print(f" num valid blocks {len(valid_blocks)}")
             
             if not valid_blocks:
                 raise ValueError("No valid text blocks found in the multimodal dataset")
@@ -130,9 +131,10 @@ def process_file(
                         num_pairs=num_pairs or 5, 
                         verbose=verbose
                     )
+                    print(f" block result {block_result} \n {'-'*50}")
                     if verbose:
                         logger.info(f"Generated {len(block_result)} QA pairs for block {i+1}")
-                    all_results.extend(block_result)
+                    all_results.append(block_result)
                 elif content_type == "summary":
                     generator = QAGenerator(client, config_path)
                     summary = generator.generate_summary(text)
@@ -150,7 +152,7 @@ def process_file(
                     )
                     if verbose:
                         logger.info(f"Generated {len(block_result.get('cot_examples', []))} CoT examples for block {i+1}")
-                    all_results.extend(block_result.get("cot_examples", []))
+                    all_results.append(block_result.get("cot_examples", []))
                 else:
                     raise ValueError(f"Unsupported content type for multimodal data: {content_type}")
             
