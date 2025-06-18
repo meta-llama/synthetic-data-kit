@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Upload File{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h2>Upload File</h2>
+            </div>
+            <div class="card-body">
+                <p>Upload a text file to use as input for generating QA pairs.</p>
+                
+                <form method="POST" enctype="multipart/form-data" class="mt-4 loading-form" data-loading-message="Uploading file... Please wait">
+                    {{ form.csrf_token }}
+                    
+                    <div class="mb-3">
+                        <label for="file" class="form-label">{{ form.file.label }}</label>
+                        {{ form.file(class="form-control") }}
+                        {% if form.file.errors %}
+                        <div class="invalid-feedback d-block">
+                            {% for error in form.file.errors %}
+                            {{ error }}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                        <div class="form-text">Select a text file (.txt) to upload.</div>
+                    </div>
+                    
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+                        {{ form.submit(class="btn btn-primary") }}
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -8,6 +8,7 @@ from pprint import pprint
 from typing import Any, Mapping
 
 from torchtune.data import Message
+from torchtune.datasets._packed import PackedDataset
 from torchtune.datasets import SFTDataset
 from torchtune.modules.transforms import Transform
 from torchtune.modules.transforms.tokenizers import ModelTokenizer
@@ -53,7 +54,10 @@ class ToolCallMessages(Transform):
 
 
 def custom_dataset(
-    model_transform, train_on_input=False, **load_dataset_kwargs
+    tokenizer,
+    train_on_input=False,
+    packed: bool = False,
+    **load_dataset_kwargs,
 ) -> SFTDataset:
     message_transform = ToolCallMessages(train_on_input=train_on_input)
 
@@ -64,11 +68,23 @@ def custom_dataset(
         if x.endswith(".arrow")
     ]
 
-    return SFTDataset(
+    ds = SFTDataset(
         source="arrow",
         data_files=arrow_files,
         split="train",
         message_transform=message_transform,
-        model_transform=model_transform,
+        model_transform=tokenizer,
         **load_dataset_kwargs,
     )
+
+    if packed:
+        if tokenizer is None:
+            raise ValueError(
+                "Needs tokenizer to pack samples."
+            )
+        if tokenizer.max_seq_len is None:
+            raise ValueError(
+                "PackedDataset requires a max_seq_len to be set on the tokenizer."
+            )
+        return PackedDataset(ds, max_seq_len=tokenizer.max_seq_len)
+    return ds

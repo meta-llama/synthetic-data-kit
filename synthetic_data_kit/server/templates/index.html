@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+
+{% block title %}Synthetic Data Kit - Home{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h1 class="card-title">Synthetic Data Kit Web Interface</h1>
+            </div>
+            <div class="card-body">
+                <p>Welcome to the Synthetic Data Kit web interface. This tool allows you to generate and curate synthetic question-answer pairs from text documents.</p>
+                
+                <h2>Current Configuration</h2>
+                <div class="alert alert-info">
+                    <p><strong>LLM Provider:</strong> {{ provider }}</p>
+                </div>
+                
+                <h2>Available Operations</h2>
+                <div class="row mt-4">
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header bg-info text-white">
+                                Ingest Document
+                            </div>
+                            <div class="card-body">
+                                <p>Parse documents (PDF, HTML, YouTube, DOCX, PPT, TXT) into clean text.</p>
+                                <a href="{{ url_for('ingest') }}" class="btn btn-info">Ingest Document</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header bg-primary text-white">
+                                Create Content
+                            </div>
+                            <div class="card-body">
+                                <p>Generate content from text: QA pairs, summaries, Chain of Thought examples.</p>
+                                <a href="{{ url_for('create') }}" class="btn btn-primary">Create Content</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header bg-success text-white">
+                                Curate QA Pairs
+                            </div>
+                            <div class="card-body">
+                                <p>Curate and improve existing question-answer pairs with an LLM.</p>
+                                <a href="{{ url_for('curate') }}" class="btn btn-success">Curate QA Pairs</a>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <div class="card h-100">
+                            <div class="card-header bg-secondary text-white">
+                                File Browser
+                            </div>
+                            <div class="card-body">
+                                <p>Browse and view generated files and QA pairs in your data directory.</p>
+                                <a href="{{ url_for('files') }}" class="btn btn-secondary">Browse Files</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

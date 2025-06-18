@@ -1,2 +1,9 @@
 data/*
 **.pyc
+venv
+.venv
+__pycache__
+*.pyc
+.env
+.env.example
+.DS_Store

@@ -38,8 +38,17 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Configuration file not found at {config_path}")
     
+    print(f"Loading config from: {config_path}")
     with open(config_path, 'r') as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+    
+    # Debug: Print LLM provider if it exists
+    if 'llm' in config and 'provider' in config['llm']:
+        print(f"Config has LLM provider set to: {config['llm']['provider']}")
+    else:
+        print("Config does not have LLM provider set")
+    
+    return config
 
 def get_path_config(config: Dict[str, Any], path_type: str, file_type: Optional[str] = None) -> str:
     """Get path from configuration based on type and optionally file type"""
@@ -60,12 +69,35 @@ def get_path_config(config: Dict[str, Any], path_type: str, file_type: Optional[
     else:
         raise ValueError(f"Unknown path type: {path_type}")
 
+def get_llm_provider(config: Dict[str, Any]) -> str:
+    """Get the selected LLM provider
+    
+    Returns:
+        String with provider name: 'vllm' or 'api-endpoint'
+    """
+    llm_config = config.get('llm', {})
+    provider = llm_config.get('provider', 'vllm')
+    print(f"get_llm_provider returning: {provider}")
+    if provider != 'api-endpoint' and 'llm' in config and 'provider' in config['llm'] and config['llm']['provider'] == 'api-endpoint':
+        print(f"WARNING: Config has 'api-endpoint' but returning '{provider}'")
+    return provider
+
 def get_vllm_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Get VLLM configuration"""
     return config.get('vllm', {
         'api_base': 'http://localhost:8000/v1',
         'port': 8000,
         'model': 'meta-llama/Llama-3.3-70B-Instruct',
+        'max_retries': 3,
+        'retry_delay': 1.0
+    })
+
+def get_openai_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get API endpoint configuration"""
+    return config.get('api-endpoint', {
+        'api_base': None,  # None means use default API base URL
+        'api_key': None,  # None means use environment variables
+        'model': 'gpt-4o',
         'max_retries': 3,
         'retry_delay': 1.0
     })

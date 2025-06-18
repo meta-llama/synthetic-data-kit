@@ -56,6 +56,10 @@ class COTGenerator:
         """Generate chain-of-thought reasoning examples"""
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
+        # Get default num_examples from config if not provided
+        if num_examples is None:
+            num_examples = self.generation_config.get("num_cot_examples", 5)
+        
         # Get the prompt template
         prompt_template = get_prompt(self.config, "cot_generation")
         
@@ -112,6 +116,10 @@ class COTGenerator:
         # Get the prompt template
         prompt_template = get_prompt(self.config, "cot_enhancement")
         
+        if verbose:
+            print(f"Debug - Conversations to enhance structure: {type(conversations)}")
+            print(f"Debug - First conversation: {json.dumps(conversations[0] if conversations else {}, indent=2)[:100]}...")
+        
         # Format the prompt
         conversation_str = json.dumps(conversations, ensure_ascii=False, indent=2)
         prompt = prompt_template.format(
@@ -151,6 +159,7 @@ class COTGenerator:
                         document_image: Optional[str] = None,
                         num_examples: int = 5, 
                         include_simple_steps: bool = False) -> Dict[str, Any]:
+
         """Process a document to generate CoT examples"""
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         

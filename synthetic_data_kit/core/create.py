@@ -3,7 +3,7 @@
 #
 # This source code is licensed under the terms described in the LICENSE file in
 # the root directory of this source tree.
-# Generate teh content: CoT/QA/Summary Datasets
+# Generate the content: CoT/QA/Summary Datasets
 import os
 import json
 import logging
@@ -16,6 +16,7 @@ import pyarrow as pa
 
 from synthetic_data_kit.models.llm_client import LLMClient
 from synthetic_data_kit.generators.qa_generator import QAGenerator
+from synthetic_data_kit.generators.vqa_generator import VQAGenerator
 from synthetic_data_kit.utils.config import get_generation_config
 
 # Configure logging
@@ -34,6 +35,13 @@ def _convert_image_to_base64(image_bytes: bytes) -> str:
     if image_bytes is None:
         return None
     return base64.b64encode(image_bytes).decode('utf-8')
+  
+def read_json(file_path):
+    # Read the file
+    with open(file_path, 'r', encoding='utf-8') as f:
+        document_text = f.read()
+    return document_text
+
 
 def process_file(
     file_path: str,
@@ -45,6 +53,7 @@ def process_file(
     num_pairs: Optional[int] = None,
     verbose: bool = False,
     multimodal: bool = False,
+    provider: Optional[str] = None,
 ) -> str:
     """Process a file to generate content
     
@@ -179,12 +188,17 @@ def process_file(
             logger.info(f"Total text length: {len(document_text)} characters")
     
     # For text-only processing, continue with existing logic
+
     # Initialize LLM client
     client = LLMClient(
         config_path=config_path,
+        provider=provider,
         api_base=api_base,
         model_name=model
     )
+    
+    # Debug: Print which provider is being used
+    print(f"L Using {client.provider} provider")
     
     # Generate base filename for output
     base_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -192,6 +206,8 @@ def process_file(
     # Generate content based on type
     if content_type == "qa":
         generator = QAGenerator(client, config_path)
+
+        document_text = read_json(file_path)
         
         # Get num_pairs from args or config
         if num_pairs is None:
@@ -222,6 +238,8 @@ def process_file(
     
     elif content_type == "summary":
         generator = QAGenerator(client, config_path)
+
+        document_text = read_json(file_path)
         
         if verbose:
             logger.info("Generating summary")
@@ -245,12 +263,14 @@ def process_file(
         
         # Initialize the CoT generator
         generator = COTGenerator(client, config_path)
+
+        document_text = read_json(file_path)
         
         # Get num_examples from args or config
         if num_pairs is None:
             config = client.config
             generation_config = get_generation_config(config)
-            num_pairs = generation_config.get("num_pairs", 5)
+            num_pairs = generation_config.get("num_cot_examples", 5)
         
         if verbose:
             logger.info(f"Generating {num_pairs} CoT examples")
@@ -288,6 +308,18 @@ def process_file(
         
         # Initialize the CoT generator
         generator = COTGenerator(client, config_path)
+
+        document_text = read_json(file_path)
+        
+        # Get max_examples from args or config
+        max_examples = None
+        if num_pairs is not None:
+            max_examples = num_pairs  # If user specified a number, use it
+        else:
+            config = client.config
+            generation_config = get_generation_config(config)
+            # Get the config value (will be None by default, meaning enhance all)
+            max_examples = generation_config.get("num_cot_enhance_examples")
         
         # Instead of parsing as text, load the file as JSON with conversations
         try:
@@ -295,7 +327,21 @@ def process_file(
                 data = json.load(f)
             
             # Handle different dataset formats
-            if isinstance(data, dict) and "conversations" in data:
+            # First, check for QA pairs format (the most common input format)
+            if isinstance(data, dict) and "qa_pairs" in data:
+                # QA pairs format from "create qa" command (make this the primary format)
+                from synthetic_data_kit.utils.llm_processing import convert_to_conversation_format
+                
+                qa_pairs = data.get("qa_pairs", [])
+                if verbose:
+                    print(f"Converting {len(qa_pairs)} QA pairs to conversation format")
+                
+                conv_list = convert_to_conversation_format(qa_pairs)
+                # Wrap each conversation in the expected format
+                conversations = [{"conversations": conv} for conv in conv_list]
+                is_single_conversation = False
+            # Then handle other conversation formats for backward compatibility
+            elif isinstance(data, dict) and "conversations" in data:
                 # Single conversation with a conversations array
                 conversations = [data]
                 is_single_conversation = True
@@ -311,6 +357,12 @@ def process_file(
                 # Try to handle as a generic list of conversations
                 conversations = data
                 is_single_conversation = False
+            
+            # Limit the number of conversations if needed
+            if max_examples is not None and len(conversations) > max_examples:
+                if verbose:
+                    print(f"Limiting to {max_examples} conversations (from {len(conversations)} total)")
+                conversations = conversations[:max_examples]
             
             if verbose:
                 logger.info(f"Found {len(conversations)} conversation(s) to enhance")
@@ -330,7 +382,20 @@ def process_file(
                         continue
                     
                     # Enhance this conversation's messages
-                    enhanced_messages = generator.enhance_with_cot(conv_messages, include_simple_steps=verbose)
+                    if verbose:
+                        print(f"Debug - Conv_messages type: {type(conv_messages)}")
+                        print(f"Debug - Conv_messages structure: {conv_messages[:1] if isinstance(conv_messages, list) else 'Not a list'}")
+                    
+                    # Always include simple steps when enhancing QA pairs
+                    enhanced_messages = generator.enhance_with_cot(conv_messages, include_simple_steps=True)
+                    
+                    # Handle nested bug
+                    if enhanced_messages and isinstance(enhanced_messages, list):
+                        # Nested bug
+                        if enhanced_messages and isinstance(enhanced_messages[0], list):
+                            if verbose:
+                                print(f"Debug - Flattening nested array response")
+                            enhanced_messages = enhanced_messages[0]
                     
                     # Create enhanced conversation with same structure
                     enhanced_conv = conversation.copy()
@@ -361,6 +426,19 @@ def process_file(
             
         except json.JSONDecodeError:
             raise ValueError(f"Failed to parse {file_path} as JSON. For cot-enhance, input must be a valid JSON file.")
-    
+    elif content_type == "vqa_add_reasoning":
+        # Initialize the VQA generator
+        generator = VQAGenerator(client, config_path)
+        
+        # Process the dataset
+        output_path = generator.process_dataset(
+            dataset_source=file_path,
+            output_dir=output_dir,
+            num_examples=num_pairs,
+            verbose=verbose
+        )
+        
+        return output_path
+
     else:
         raise ValueError(f"Unknown content type: {content_type}")

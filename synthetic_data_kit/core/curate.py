@@ -23,6 +23,7 @@ def curate_qa_pairs(
     model: Optional[str] = None,
     config_path: Optional[Path] = None,
     verbose: bool = False,
+    provider: Optional[str] = None,
 ) -> str:
     """Clean and filter QA pairs based on quality ratings
     
@@ -59,6 +60,7 @@ def curate_qa_pairs(
     # Initialize LLM client
     client = LLMClient(
         config_path=config_path,
+        provider=provider,
         api_base=api_base,
         model_name=model
     )

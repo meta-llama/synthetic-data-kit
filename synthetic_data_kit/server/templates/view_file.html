@@ -1,0 +1,406 @@
+{% extends 'base.html' %}
+
+{% block title %}View File - {{ file_path }}{% endblock %}
+
+{% block extra_head %}
+{% if file_type == "json" %}
+<!-- JSON formatter CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jsoneditor@9.9.0/dist/jsoneditor.min.css">
+<!-- Bootstrap Icons -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.0/font/bootstrap-icons.css">
+<style>
+    .action-buttons {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 10px;
+    }
+    .action-buttons button {
+        margin-left: 5px;
+    }
+    .item-editor {
+        display: none;
+        margin-top: 10px;
+    }
+    .editor-container {
+        height: 400px;
+        margin-bottom: 10px;
+    }
+    .message.system {
+        background-color: #f8f9fa;
+    }
+    .message.user {
+        background-color: #e9ecef;
+    }
+    .message.assistant {
+        background-color: #d1ecf1;
+    }
+    .qa-pair, .cot-example, .conversation {
+        position: relative;
+        transition: all 0.3s ease;
+    }
+    .qa-pair:hover, .cot-example:hover, .conversation:hover {
+        box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+</style>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h2>File Viewer: {{ file_path }}</h2>
+                <a href="{{ url_for('files') }}" class="btn btn-outline-secondary btn-sm">Back to Files</a>
+            </div>
+            <div class="card-body">
+                {% if file_type == "json" %}
+                    {% if is_qa_pairs or is_cot_examples or has_conversations %}
+                    <ul class="nav nav-tabs mb-3" id="viewTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="formatted-tab" data-bs-toggle="tab" data-bs-target="#formatted" type="button" role="tab">Formatted View</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="json-tab" data-bs-toggle="tab" data-bs-target="#json" type="button" role="tab">JSON View</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content" id="viewTabsContent">
+                        <div class="tab-pane fade show active" id="formatted" role="tabpanel">
+                            <!-- Summary section if present -->
+                            {% if has_summary and content.summary is defined %}
+                            <div class="mb-4">
+                                <h3>Summary</h3>
+                                <div class="card">
+                                    <div class="card-body">
+                                        {{ content.summary|replace('\n', '<br>')|safe }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+                                                        <!-- QA Pairs section -->
+                            {% if is_qa_pairs and content.qa_pairs is defined %}
+                            <div class="qa-container mb-4">
+                                <div class="mb-3">
+                                    <h3>QA Pairs</h3>
+                                    <p class="text-muted">Total: {{ content.qa_pairs|length }} pairs</p>
+                                </div>
+                                
+                                {% for qa_pair in content.qa_pairs %}
+                                <div class="qa-pair mb-4 p-3 border rounded" id="qa-pair-{{ loop.index0 }}">
+                                    <div class="question mb-2"><strong>Question:</strong> {{ qa_pair.question }}</div>
+                                    {% if qa_pair.reasoning is defined %}
+                                    <div class="reasoning mb-2">
+                                        <strong>Reasoning:</strong>
+                                        <p>{{ qa_pair.reasoning|replace('\n', '<br>')|safe }}</p>
+                                    </div>
+                                    {% endif %}
+                                    <div class="answer"><strong>Answer:</strong> {{ qa_pair.answer }}</div>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-sm btn-primary edit-item-btn" data-item-type="qa_pairs" data-item-index="{{ loop.index0 }}"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-danger delete-item-btn" data-item-type="qa_pairs" data-item-index="{{ loop.index0 }}"><i class="bi bi-trash"></i></button>
+                                    </div>
+                                    <div class="item-editor" id="editor-qa-{{ loop.index0 }}">
+                                        <div class="editor-container" id="json-editor-qa-{{ loop.index0 }}"></div>
+                                        <div class="d-flex justify-content-end">
+                                            <button class="btn btn-secondary cancel-edit-btn me-2">Cancel</button>
+                                            <button class="btn btn-success save-edit-btn" data-item-type="qa_pairs" data-item-index="{{ loop.index0 }}">Save Changes</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Chain of Thought examples section -->
+                            {% if is_cot_examples and content.cot_examples is defined %}
+                            <div class="cot-container mb-4">
+                                <div class="mb-3">
+                                    <h3>Chain of Thought Examples</h3>
+                                    <p class="text-muted">Total: {{ content.cot_examples|length }} examples</p>
+                                </div>
+                                
+                                {% for example in content.cot_examples %}
+                                <div class="cot-example mb-4 p-3 border rounded" id="cot-example-{{ loop.index0 }}">
+                                    <div class="question mb-2"><strong>Question:</strong> {{ example.question }}</div>
+                                    <div class="reasoning mb-2">
+                                        <strong>Reasoning:</strong>
+                                        <p>{{ example.reasoning|replace('\n', '<br>')|safe }}</p>
+                                    </div>
+                                    <div class="answer"><strong>Answer:</strong> {{ example.answer }}</div>
+                                    <div class="action-buttons">
+                                        <button class="btn btn-sm btn-primary edit-item-btn" data-item-type="cot_examples" data-item-index="{{ loop.index0 }}"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-danger delete-item-btn" data-item-type="cot_examples" data-item-index="{{ loop.index0 }}"><i class="bi bi-trash"></i></button>
+                                    </div>
+                                    <div class="item-editor" id="editor-cot-{{ loop.index0 }}">
+                                        <div class="editor-container" id="json-editor-cot-{{ loop.index0 }}"></div>
+                                        <div class="d-flex justify-content-end">
+                                            <button class="btn btn-secondary cancel-edit-btn me-2">Cancel</button>
+                                            <button class="btn btn-success save-edit-btn" data-item-type="cot_examples" data-item-index="{{ loop.index0 }}">Save Changes</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Conversations section -->
+                            {% if has_conversations and content.conversations is defined %}
+                            <div class="conversations-container mb-4">
+                                <div class="mb-3">
+                                    <h3>Conversations</h3>
+                                    <p class="text-muted">Total: {{ content.conversations|length }} conversations</p>
+                                </div>
+                                
+                                {% for conversation in content.conversations %}
+                                <div class="conversation mb-4 p-3 border rounded" id="conversation-{{ loop.index0 }}">
+                                    <h4 class="mb-3">Conversation {{ loop.index }}</h4>
+                                    {% for message in conversation %}
+                                    <div class="message mb-2 {{ message.role }} p-2 rounded">
+                                        <strong class="d-block mb-1">{{ message.role|capitalize }}:</strong>
+                                        <p class="mb-0">{{ message.content|replace('\n', '<br>')|safe }}</p>
+                                    </div>
+                                    {% endfor %}
+                                    <div class="action-buttons">
+                                        <button class="btn btn-sm btn-primary edit-item-btn" data-item-type="conversations" data-item-index="{{ loop.index0 }}"><i class="bi bi-pencil"></i></button>
+                                        <button class="btn btn-sm btn-danger delete-item-btn" data-item-type="conversations" data-item-index="{{ loop.index0 }}"><i class="bi bi-trash"></i></button>
+                                    </div>
+                                    <div class="item-editor" id="editor-conv-{{ loop.index0 }}">
+                                        <div class="editor-container" id="json-editor-conv-{{ loop.index0 }}"></div>
+                                        <div class="d-flex justify-content-end">
+                                            <button class="btn btn-secondary cancel-edit-btn me-2">Cancel</button>
+                                            <button class="btn btn-success save-edit-btn" data-item-type="conversations" data-item-index="{{ loop.index0 }}">Save Changes</button>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                            
+                            <!-- Warning if no recognized format -->
+                            {% if file_type == "json" and not is_qa_pairs and not is_cot_examples and not has_conversations %}
+                            <div class="alert alert-warning">
+                                This JSON file doesn't contain QA pairs, CoT examples, or conversations in the expected format.
+                            </div>
+                            {% endif %}
+                        </div>
+                        <div class="tab-pane fade" id="json" role="tabpanel">
+                            <div id="jsoneditor" class="json-viewer"></div>
+                        </div>
+                    </div>
+                    {% else %}
+                    <!-- Plain JSON view when no recognized format is found -->
+                    <div id="jsoneditor" class="json-viewer"></div>
+                    {% endif %}
+                {% else %}
+                <pre>{{ content }}</pre>
+                {% endif %}
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <small class="text-muted">File type: {{ file_type }}</small>
+                    {% if file_type == "json" and is_qa_pairs %}
+                    <a href="{{ url_for('curate') }}?input_file={{ file_path }}" class="btn btn-primary btn-sm">Curate this file</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% if file_type == "json" %}
+<!-- JSON formatter JS -->
+<script src="https://cdn.jsdelivr.net/npm/jsoneditor@9.9.0/dist/jsoneditor.min.js"></script>
+<script>
+    // Store the file data in a JavaScript object
+    const fileData = {{ content|tojson }};
+    const filePath = "{{ file_path }}";
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const container = document.getElementById('jsoneditor');
+        let editors = {};
+        
+        // Create options for the JSON editor
+        const options = {
+            mode: 'view',
+            modes: ['view', 'preview'],
+            sortObjectKeys: false
+        };
+        
+        // Create the JSON editor for the full file view
+        if (container) {
+            const editor = new JSONEditor(container, options);
+            editor.set(fileData);
+            container.style.height = '600px';
+        }
+        
+        // Handle edit button clicks
+        document.querySelectorAll('.edit-item-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const itemType = this.dataset.itemType;
+                const itemIndex = parseInt(this.dataset.itemIndex);
+                const editorId = `json-editor-${itemType === 'qa_pairs' ? 'qa' : itemType === 'cot_examples' ? 'cot' : 'conv'}-${itemIndex}`;
+                const editorContainer = document.getElementById(editorId);
+                
+                // Find the parent element and the editor div
+                let parentElement;
+                if (itemType === 'qa_pairs') {
+                    parentElement = document.getElementById(`qa-pair-${itemIndex}`);
+                } else if (itemType === 'cot_examples') {
+                    parentElement = document.getElementById(`cot-example-${itemIndex}`);
+                } else if (itemType === 'conversations') {
+                    parentElement = document.getElementById(`conversation-${itemIndex}`);
+                }
+                
+                if (!parentElement) {
+                    console.error('Parent element not found');
+                    return;
+                }
+                
+                const itemEditorDiv = parentElement.querySelector('.item-editor');
+                if (!itemEditorDiv) {
+                    console.error('Editor container not found');
+                    return;
+                }
+                
+                // Show the editor
+                itemEditorDiv.style.display = 'block';
+                
+                // Get the data based on the item type
+                let itemData = null;
+                
+                if (itemType === 'qa_pairs' && fileData.qa_pairs) {
+                    itemData = fileData.qa_pairs[itemIndex];
+                } else if (itemType === 'cot_examples' && fileData.cot_examples) {
+                    itemData = fileData.cot_examples[itemIndex];
+                } else if (itemType === 'conversations' && fileData.conversations) {
+                    itemData = fileData.conversations[itemIndex];
+                }
+                
+                if (!itemData) {
+                    console.error('Item data not found');
+                    return;
+                }
+                
+                // Create editor if it doesn't exist yet
+                if (!editors[editorId]) {
+                    const editorOptions = {
+                        mode: 'code',
+                        modes: ['code', 'tree'],
+                        sortObjectKeys: false
+                    };
+                    editors[editorId] = new JSONEditor(editorContainer, editorOptions);
+                }
+                
+                // Set the data
+                editors[editorId].set(itemData);
+            });
+        });
+        
+        // Handle cancel button clicks
+        document.querySelectorAll('.cancel-edit-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                // Find the closest editor div and hide it
+                const itemEditorDiv = this.closest('.item-editor');
+                if (itemEditorDiv) {
+                    itemEditorDiv.style.display = 'none';
+                }
+            });
+        });
+        
+        // Handle save button clicks
+        document.querySelectorAll('.save-edit-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const itemType = this.dataset.itemType;
+                const itemIndex = parseInt(this.dataset.itemIndex);
+                const editorId = `json-editor-${itemType === 'qa_pairs' ? 'qa' : itemType === 'cot_examples' ? 'cot' : 'conv'}-${itemIndex}`;
+                
+                try {
+                    // Get the edited data
+                    const itemData = editors[editorId].get();
+                    
+                    // Save the changes
+                    fetch(`/api/edit_item/${filePath}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            item_type: itemType,
+                            item_index: itemIndex,
+                            item_content: itemData
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Reload the page to show updated content
+                            location.reload();
+                        } else {
+                            alert(`Error: ${data.message}`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while saving changes');
+                    });
+                } catch (err) {
+                    alert(`Invalid JSON format: ${err.message}`);
+                }
+            });
+        });
+        
+        // Handle delete button clicks
+        document.querySelectorAll('.delete-item-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const itemType = this.dataset.itemType;
+                const itemIndex = parseInt(this.dataset.itemIndex);
+                
+                // Find the parent element
+                let parentElement;
+                if (itemType === 'qa_pairs') {
+                    parentElement = document.getElementById(`qa-pair-${itemIndex}`);
+                } else if (itemType === 'cot_examples') {
+                    parentElement = document.getElementById(`cot-example-${itemIndex}`);
+                } else if (itemType === 'conversations') {
+                    parentElement = document.getElementById(`conversation-${itemIndex}`);
+                }
+                
+                if (!parentElement) {
+                    console.error('Parent element not found');
+                    return;
+                }
+                
+                if (confirm('Are you sure you want to delete this item? This action cannot be undone.')) {
+                    // Send delete request
+                    fetch(`/api/delete_item/${filePath}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            item_type: itemType,
+                            item_index: itemIndex
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Reload the page to update indices and counts
+                            location.reload();
+                        } else {
+                            alert(`Error: ${data.message}`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        alert('An error occurred while deleting the item');
+                    });
+                }
+            });
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}
