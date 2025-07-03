@@ -55,8 +55,8 @@ class PDFParser:
                     # Extract text
                     page_text = page.extract_text()
                     
-                    # Extract first image
-                    first_image_bytes = None
+                    # Extract all images
+                    images = []
                     if '/Resources' in page and '/XObject' in page['/Resources']:
                         xObject = page['/Resources']['/XObject'].get_object()
                         for obj in xObject:
@@ -66,22 +66,30 @@ class PDFParser:
                                     data = img_obj.get_data()
                                     if '/Filter' in img_obj:
                                         if img_obj['/Filter'] == '/DCTDecode':
-                                            first_image_bytes = data
+                                            images.append(data)
                                         elif img_obj['/Filter'] == '/FlateDecode':
-                                            first_image_bytes = self.extract_image_from_pdf_image_obj(img_obj)
+                                            img_bytes = self.extract_image_from_pdf_image_obj(img_obj)
+                                            if img_bytes is not None:
+                                                images.append(img_bytes)
                                         else:
                                             print(f"Unsupported image filter: {img_obj['/Filter']}")
                                     else:
                                         print("No filter found for image")
-                                    break
                                 except Exception as e:
                                     print(f"Warning: Error extracting image: {str(e)}")
                                     continue
-                    
-                    output_data.append({
-                        'text': page_text,
-                        'image': first_image_bytes
-                    })
+                    # If no images, still add a row with image=None
+                    if images:
+                        for img in images:
+                            output_data.append({
+                                'text': page_text,
+                                'image': img
+                            })
+                    else:
+                        output_data.append({
+                            'text': page_text,
+                            'image': None
+                        })
                 
                 return output_data
                 

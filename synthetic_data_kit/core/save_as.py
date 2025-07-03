@@ -55,12 +55,15 @@ def convert_format(
                     'answer': conv[2]['content']
                 })
     else:
-        # If the file is just an array of objects, check if they look like QA pairs
+        # If the file is just an array of objects, check for blocks with qa_pairs
         if isinstance(data, list):
             qa_pairs = []
             for item in data:
-                if isinstance(item, dict) and "question" in item and "answer" in item:
-                    qa_pairs.append(item)
+                if isinstance(item, dict):
+                    if "qa_pairs" in item and isinstance(item["qa_pairs"], list):
+                        qa_pairs.extend(item["qa_pairs"])
+                    elif "question" in item and "answer" in item:
+                        qa_pairs.append(item)
         else:
             raise ValueError("Unrecognized data format - expected QA pairs or conversations")
     
