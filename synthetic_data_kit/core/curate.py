@@ -48,20 +48,25 @@ def curate_qa_pairs(
     # Load input file
     with open(input_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
-        # If the data is a dict, wrap it in a list for uniform processing
-        if isinstance(data, dict):
-            data = [data]
-    
-    # Extract QA pairs
-    all_qa_pairs = []
-    all_summaries = []
-    for block in data:
-        if isinstance(block, dict):
-            all_qa_pairs.extend(block.get("qa_pairs", []))
-            all_summaries.append(block.get("summary", ""))
 
-    qa_pairs = all_qa_pairs
-    summary = "\n\n".join(all_summaries) 
+    # Extract QA pairs and summaries based on input structure
+    qa_pairs = []
+    summary_list = []
+    
+    if isinstance(data, list):
+        # Handle a list of JSON objects
+        for block in data:
+            if isinstance(block, dict):
+                qa_pairs.extend(block.get("qa_pairs", []))
+                summary_text = block.get("summary", "")
+                summary_list.append(summary_text if summary_text is not None else "")
+    elif isinstance(data, dict):
+        # Handle a single JSON object
+        qa_pairs = data.get("qa_pairs", [])
+        summary_text = data.get("summary", "")
+        summary_list.append(summary_text if summary_text is not None else "")
+    
+    summary = "\n\n".join(summary_list)
     
     # If there are no QA pairs or they're already filtered
     if not qa_pairs:

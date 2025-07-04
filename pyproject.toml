@@ -22,6 +22,7 @@ dependencies = [
     "typer>=0.9.0",
     "openai>=1.0.0",
     "flask>=2.0.0",
+    "pylance",
     "flask-wtf>=1.0.0",
     "bootstrap-flask>=2.2.0",
 ]
