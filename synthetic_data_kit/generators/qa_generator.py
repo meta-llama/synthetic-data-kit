@@ -148,6 +148,12 @@ class QAGenerator:
         
         # Process in batches
         for batch_start in range(0, len(chunks), batch_size):
+            # Check if we've already generated enough pairs
+            if len(all_qa_pairs) >= num_pairs:
+                if verbose:
+                    print(f"Reached target of {num_pairs} pairs. Stopping processing.")
+                break
+                
             batch_end = min(batch_start + batch_size, len(chunks))
             batch_messages = all_messages[batch_start:batch_end]
             current_batch_size = len(batch_messages)
@@ -171,16 +177,35 @@ class QAGenerator:
                 
                 # Process each response in the batch
                 for j, response in enumerate(batch_responses):
+                    # Check if we've reached the target before processing more
+                    if len(all_qa_pairs) >= num_pairs:
+                        if verbose:
+                            print(f"  Reached target of {num_pairs} pairs. Stopping batch processing.")
+                        break
+                        
                     chunk_index = batch_start + j
                     chunk_pairs = parse_qa_pairs(response)
-                    all_qa_pairs.extend(chunk_pairs)
                     
-                    if verbose:
-                        print(f"  Generated {len(chunk_pairs)} pairs from chunk {chunk_index+1}")
+                    # Only add pairs up to the target limit
+                    remaining_pairs = num_pairs - len(all_qa_pairs)
+                    if remaining_pairs > 0:
+                        pairs_to_add = chunk_pairs[:remaining_pairs]
+                        all_qa_pairs.extend(pairs_to_add)
+                        
+                        if verbose:
+                            print(f"  Generated {len(pairs_to_add)} pairs from chunk {chunk_index+1} (total: {len(all_qa_pairs)}/{num_pairs})")
+                    
+                    # Break if we've reached the target
+                    if len(all_qa_pairs) >= num_pairs:
+                        break
                 
                 # Update progress bar if in verbose mode
                 if progress_ctx and generate_task:
                     progress_ctx.update(generate_task, advance=current_batch_size)
+                
+                # Break outer loop if we've reached the target
+                if len(all_qa_pairs) >= num_pairs:
+                    break
                 
             except Exception as e:
                 if verbose:
@@ -200,7 +225,7 @@ class QAGenerator:
             print("Batch processing complete.")
         
         # Always print summary information, even in non-verbose mode
-        print(f"Generated {len(all_qa_pairs)} QA pairs total")
+        print(f"Generated {len(all_qa_pairs)} QA pairs total (requested: {num_pairs})")
         return all_qa_pairs
     
     def rate_qa_pairs(self, 

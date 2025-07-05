@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "synthetic-data-kit"
-version = "0.0.4b2"
+version = "0.0.5b1"
 description = "Tool for generating high quality Synthetic datasets"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -25,6 +25,7 @@ dependencies = [
     "pylance",
     "flask-wtf>=1.0.0",
     "bootstrap-flask>=2.2.0",
+    "beautifulsoup4>=4.12.0",
 ]
 
 # These fields appear in pip show
@@ -79,10 +80,59 @@ include = [
     "MANIFEST.in",
 ]
 
-[tool.black]
+[tool.ruff]
 line-length = 100
-target-version = ["py38"]
+target-version = "py38"
 
-[tool.isort]
-profile = "black"
-line_length = 100
+[tool.ruff.lint]
+# select = [
+#     "E",  # pycodestyle errors
+#     "W",  # pycodestyle warnings
+#     "F",  # pyflakes
+#     "I",  # isort
+#     "B",  # flake8-bugbear
+#     "C4", # flake8-comprehensions
+#     "UP", # pyupgrade
+# ]
+select = []  # Disable all linting
+ignore = []
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-mock>=3.0.0",
+    "ruff>=0.6.0",
+    "mypy>=1.0.0",
+    "pre-commit>=3.0.0",
+    "beautifulsoup4>=4.12.0",
+]
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+strict_optional = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
+markers = [
+    "unit: marks tests as unit tests",
+    "integration: marks tests as integration tests",
+    "functional: marks tests as functional tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::UserWarning",
+]

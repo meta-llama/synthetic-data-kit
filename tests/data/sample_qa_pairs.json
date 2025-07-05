@@ -1,0 +1,18 @@
+[
+  {
+    "question": "What is synthetic data?",
+    "answer": "Synthetic data is artificially generated data that mimics real-world data without containing any actual information from the original dataset."
+  },
+  {
+    "question": "What are the benefits of using synthetic data?",
+    "answer": "The benefits of using synthetic data include protecting privacy by not using real user data, creating large datasets when real data is scarce, addressing class imbalance, and including rare edge cases that might not appear frequently in real data."
+  },
+  {
+    "question": "How does synthetic data help with fine-tuning language models?",
+    "answer": "Synthetic data helps with fine-tuning language models by producing question-answer pairs, chain-of-thought reasoning examples, and other formats suitable for model training, addressing the need for substantial amounts of high-quality training data."
+  },
+  {
+    "question": "What does the Synthetic Data Kit provide?",
+    "answer": "The Synthetic Data Kit provides tools for generating, curating, and formatting synthetic data specifically designed for fine-tuning language models, supporting multiple file formats, different generation strategies, and various output formats compatible with popular fine-tuning frameworks."
+  }
+]

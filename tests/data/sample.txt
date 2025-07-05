@@ -1,0 +1,12 @@
+This is a sample text file for testing the Synthetic Data Kit.
+
+Synthetic data refers to artificially generated data that mimics real-world data without containing any actual information from the original dataset. This approach is valuable for many reasons:
+
+1. Privacy: Synthetic data helps protect sensitive information since it doesn't contain real user data.
+2. Quantity: It allows for creation of large datasets when real data is scarce.
+3. Balance: Synthetic data can be generated to address class imbalance or underrepresented cases.
+4. Edge cases: It can be designed to include rare scenarios that might not appear frequently in real data.
+
+Fine-tuning large language models often requires substantial amounts of high-quality training data. Synthetic data generation can address this need by producing question-answer pairs, chain-of-thought reasoning examples, and other formats suitable for model training.
+
+The Synthetic Data Kit provides tools for generating, curating, and formatting synthetic data specifically designed for fine-tuning language models. It supports multiple file formats, different generation strategies, and various output formats compatible with popular fine-tuning frameworks.

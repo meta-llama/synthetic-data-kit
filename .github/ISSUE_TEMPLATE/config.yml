@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/meta-llama/synthetic-data-kit#readme
+    about: Check the documentation for answers to common questions
+  - name: Getting Started
+    url: https://github.com/meta-llama/synthetic-data-kit/blob/main/getting-started/README.md
+    about: Read the getting started guide for quick setup instructions

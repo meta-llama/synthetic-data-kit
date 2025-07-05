@@ -60,6 +60,18 @@ class COTGenerator:
         if num_examples is None:
             num_examples = self.generation_config.get("num_cot_examples", 5)
         
+        # For small documents, use single call
+        single_call_max_size = self.generation_config.get("single_call_max_size", 8000)
+        if len(document_text) < single_call_max_size:
+            return self._generate_single_call(document_text, num_examples)
+        
+        # For large documents, use chunking (same logic as QA generator)
+        return self._generate_with_chunking(document_text, num_examples)
+    
+    def _generate_single_call(self, document_text: str, num_examples: int) -> List[Dict[str, Any]]:
+        """Generate CoT examples in a single API call"""
+        verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
+        
         # Get the prompt template
         prompt_template = get_prompt(self.config, "cot_generation")
         
@@ -74,7 +86,7 @@ class COTGenerator:
         max_tokens = self.generation_config.get("max_tokens", 4096)
         
         if verbose:
-            print(f"Generating {num_examples} CoT examples...")
+            print(f"Generating {num_examples} CoT examples (single call)...")
         
         messages = [{"role": "system", "content": prompt}]
         
@@ -108,6 +120,123 @@ class COTGenerator:
             print(f"Successfully generated {len(examples)} CoT examples")
         
         return examples
+    
+    def _generate_with_chunking(self, document_text: str, num_examples: int) -> List[Dict[str, Any]]:
+        """Generate CoT examples using chunking strategy (copied from QA generator)"""
+        from synthetic_data_kit.utils.text import split_into_chunks
+        
+        verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
+        
+        # Get generation config
+        chunk_size = self.generation_config.get("chunk_size", 4000)
+        temperature = self.generation_config.get("temperature", 0.7)
+        overlap = self.generation_config.get("overlap", 200)
+        batch_size = self.generation_config.get("batch_size", 32)
+        
+        # Split text into chunks
+        chunks = split_into_chunks(
+            document_text, 
+            chunk_size=chunk_size, 
+            overlap=overlap
+        )
+        
+        if verbose:
+            print(f"Generating CoT examples using chunking...")
+            print(f"Document split into {len(chunks)} chunks")
+            print(f"Using batch size of {batch_size}")
+        
+        all_examples = []
+        examples_per_chunk = max(1, round(num_examples / len(chunks)))
+        
+        # Get CoT generation prompt template
+        cot_prompt_template = get_prompt(self.config, "cot_generation")
+        
+        # Prepare all message batches
+        all_messages = []
+        for i, chunk in enumerate(chunks):
+            # Format the prompt with text
+            cot_prompt = cot_prompt_template.format(
+                num_examples=examples_per_chunk,
+                text=chunk
+            )
+            
+            messages = [
+                {"role": "system", "content": cot_prompt}
+            ]
+            all_messages.append(messages)
+        
+        print(f"Processing {len(chunks)} chunks to generate CoT examples...")
+        
+        # Process in batches (same logic as QA generator)
+        for batch_start in range(0, len(chunks), batch_size):
+            # Check if we've already generated enough examples
+            if len(all_examples) >= num_examples:
+                if verbose:
+                    print(f"Reached target of {num_examples} examples. Stopping processing.")
+                break
+                
+            batch_end = min(batch_start + batch_size, len(chunks))
+            batch_messages = all_messages[batch_start:batch_end]
+            current_batch_size = len(batch_messages)
+            
+            batch_num = batch_start//batch_size + 1
+            total_batches = (len(chunks) + batch_size - 1)//batch_size
+            
+            # Simple progress indicator for non-verbose mode
+            if not verbose:
+                print(f"Processing batch {batch_num}/{total_batches}...", end="\r")
+            else:
+                print(f"Processing batch {batch_num}/{total_batches} with {current_batch_size} chunks")
+            
+            try:
+                # Process the batch
+                batch_responses = self.client.batch_completion(
+                    batch_messages,
+                    temperature=temperature,
+                    batch_size=batch_size
+                )
+                
+                # Process each response in the batch
+                for j, response in enumerate(batch_responses):
+                    # Check if we've reached the target before processing more
+                    if len(all_examples) >= num_examples:
+                        if verbose:
+                            print(f"  Reached target of {num_examples} examples. Stopping batch processing.")
+                        break
+                        
+                    chunk_index = batch_start + j
+                    chunk_examples = self.parse_json_output(response)
+                    
+                    if chunk_examples:
+                        # Only add examples up to the target limit
+                        remaining_examples = num_examples - len(all_examples)
+                        if remaining_examples > 0:
+                            examples_to_add = chunk_examples[:remaining_examples]
+                            all_examples.extend(examples_to_add)
+                            
+                            if verbose:
+                                print(f"  Generated {len(examples_to_add)} examples from chunk {chunk_index+1} (total: {len(all_examples)}/{num_examples})")
+                    
+                    # Break if we've reached the target
+                    if len(all_examples) >= num_examples:
+                        break
+                
+                # Break outer loop if we've reached the target
+                if len(all_examples) >= num_examples:
+                    break
+                
+            except Exception as e:
+                if verbose:
+                    print(f"  Error processing batch {batch_num}: {str(e)}")
+        
+        # Clear the progress line in non-verbose mode
+        if not verbose:
+            print(" " * 80, end="\r")
+            print("Batch processing complete.")
+        
+        # Always print summary information
+        print(f"Generated {len(all_examples)} CoT examples total (requested: {num_examples})")
+        return all_examples
     
     def enhance_with_cot(self, conversations: List[Dict], include_simple_steps: bool = False) -> List[Dict]:
         """Enhance existing conversations with CoT reasoning"""

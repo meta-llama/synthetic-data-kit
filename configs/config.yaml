@@ -2,21 +2,15 @@
 
 # Global paths configuration
 paths:
-  # Input data locations
-  input:
-    pdf: "data/pdf"
-    html: "data/html"
-    youtube: "data/youtube"
-    docx: "data/docx"
-    ppt: "data/ppt"
-    txt: "data/txt"
+  # Input data location (directory containing files to process)
+  input: "data/input"           # Directory containing PDF, HTML, DOCX, PPT, TXT files
   
-  # Output locations
+  # Output locations (4-stage pipeline directories)
   output:
-    parsed: "data/output"      # Where parsed text files are saved
-    generated: "data/generated" # Where generated content is saved
-    cleaned: "data/cleaned"     # Where cleaned content is saved
-    final: "data/final"         # Where final formatted content is saved
+    parsed: "data/parsed"       # Stage 1: Where parsed text files are saved (ingest output)
+    generated: "data/generated" # Stage 2: Where generated QA pairs are saved (create output)
+    curated: "data/curated"     # Stage 3: Where curated QA pairs are saved (curate output)
+    final: "data/final"         # Stage 4: Where final training formats are saved (save-as output)
 
 # LLM Provider configuration
 llm:
@@ -59,8 +53,8 @@ generation:
 # Content curation parameters
 curate:
   threshold: 7.0     # Default quality threshold (1-10)
-  batch_size: 32     # Number of items per batch for rating
-  inference_batch: 32 # Number of batches to process at once with VLLM
+  batch_size: 5      # Number of items per batch for rating (smaller batches for API stability)
+  inference_batch: 5 # Number of batches to process at once with VLLM
   temperature: 0.1   # Temperature for rating (lower = more consistent)
 
 # Format conversion parameters

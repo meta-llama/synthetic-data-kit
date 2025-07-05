@@ -7,11 +7,31 @@
 
 import os
 import sys
+import requests
 from pathlib import Path
 from typing import Optional, Dict, Any
 import importlib
 
 from synthetic_data_kit.utils.config import get_path_config
+
+
+def _check_pdf_url(url: str) -> bool:
+    """Check if `url` points to PDF content
+
+    Args:
+        url: URL to check
+
+
+    Returns:
+        bool: True if the URL points to PDF content, False otherwise
+    """
+    try:
+        response = requests.head(url, allow_redirects=True)
+        content_type = response.headers.get("Content-Type", "")
+        return "application/pdf" in content_type
+    except requests.RequestException:
+        return False
+
 
 def determine_parser(file_path: str, config: Dict[str, Any]):
     """Determine the appropriate parser for a file or URL"""
@@ -21,35 +41,39 @@ def determine_parser(file_path: str, config: Dict[str, Any]):
     from synthetic_data_kit.parsers.docx_parser import DOCXParser
     from synthetic_data_kit.parsers.ppt_parser import PPTParser
     from synthetic_data_kit.parsers.txt_parser import TXTParser
-    
+
     # Check if it's a URL
-    if file_path.startswith(('http://', 'https://')):
+    if file_path.startswith(("http://", "https://")):
         # YouTube URL
-        if 'youtube.com' in file_path or 'youtu.be' in file_path:
+        if "youtube.com" in file_path or "youtu.be" in file_path:
             return YouTubeParser()
+        # PDF URL
+        elif _check_pdf_url(file_path):
+            return PDFParser()
         # HTML URL
         else:
             return HTMLParser()
-    
+
     # File path - determine by extension
     if os.path.exists(file_path):
         ext = os.path.splitext(file_path)[1].lower()
-        
+
         parsers = {
-            '.pdf': PDFParser(),
-            '.html': HTMLParser(),
-            '.htm': HTMLParser(),
-            '.docx': DOCXParser(),
-            '.pptx': PPTParser(),
-            '.txt': TXTParser(),
+            ".pdf": PDFParser(),
+            ".html": HTMLParser(),
+            ".htm": HTMLParser(),
+            ".docx": DOCXParser(),
+            ".pptx": PPTParser(),
+            ".txt": TXTParser(),
         }
-        
+
         if ext in parsers:
             return parsers[ext]
         else:
             raise ValueError(f"Unsupported file extension: {ext}")
-    
+
     raise FileNotFoundError(f"File not found: {file_path}")
+
 
 def process_file(
     file_path: str,
@@ -59,31 +83,31 @@ def process_file(
     multimodal: bool = False,
 ) -> str:
     """Process a file using the appropriate parser
-    
+
     Args:
         file_path: Path to the file or URL to parse
         output_dir: Directory to save parsed text (if None, uses config)
         output_name: Custom filename for output (if None, uses original name)
         config: Configuration dictionary (if None, uses default)
-    
+
     Returns:
         Path to the output file
     """
     # Create output directory if it doesn't exist
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
-    
+
     # Determine parser based on file type
     parser = determine_parser(file_path, config)
-    
+
     # Parse the file
     content = parser.parse(file_path, multimodal=multimodal)
     
     # Generate output filename if not provided
     if not output_name:
-        if file_path.startswith(('http://', 'https://')):
+        if file_path.startswith(("http://", "https://")):
             # Extract filename from URL
-            if 'youtube.com' in file_path or 'youtu.be' in file_path:
+            if "youtube.com" in file_path or "youtu.be" in file_path:
                 # Use video ID for YouTube URLs
                 import re
                 video_id = re.search(r'(?:v=|\.be/)([^&]+)', file_path).group(1)
@@ -105,5 +129,5 @@ def process_file(
     # Save the content
     output_path = os.path.join(output_dir, output_name)
     parser.save(content, output_path)
-    
+
     return output_path

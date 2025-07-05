@@ -62,10 +62,13 @@ To get an overview of commands type:
 
 ### 1. Tool Setup
 
-- The tool expects respective files to be put in named folders.
+- The tool can process both individual files and entire directories.
 
 ```bash
-# Create directory structure
+# Create directory structure for the 4-stage pipeline
+mkdir -p data/{input,parsed,generated,curated,final}
+
+# Or use the legacy structure (still supported)
 mkdir -p data/{pdf,html,youtube,docx,ppt,txt,output,generated,cleaned,final}
 ```
 
@@ -79,35 +82,72 @@ vllm serve meta-llama/Llama-3.3-70B-Instruct --port 8000
 
 ### 2. Usage
 
-The flow follows 4 simple steps: `ingest`, `create`, `curate`, `save-as`, please paste your file into the respective folder:
+The flow follows 4 simple steps: `ingest`, `create`, `curate`, `save-as`. You can process individual files or entire directories:
 
 ```bash
 # Check if your backend is running
 synthetic-data-kit system-check
 
-# Parse a document to text (text-only)
-synthetic-data-kit ingest docs/report.pdf
-# This will save file to data/output/parsed/report.lance (text-only)
 
-# Parse a document, extracting text and images (multimodal)
-synthetic-data-kit ingest docs/presentation.pptx --multimodal
-# This will save file to data/output/parsed/presentation.lance (with text and image columns)
+# SINGLE FILE PROCESSING (Original approach)
+# Parse a document to text
+synthetic-data-kit ingest docs/report.pdf
+# This saves file to data/parsed/report.txt
 
 # Generate QA pairs (default)
-synthetic-data-kit create data/output/report.txt --type qa
+synthetic-data-kit create data/parsed/report.txt --type qa
 
 OR 
 
 # Generate Chain of Thought (CoT) reasoning examples
-synthetic-data-kit create data/output/report.txt --type cot
+synthetic-data-kit create data/parsed/report.txt --type cot
 
-# Both of these will save file to data/generated/report_qa_pairs.json
+# Both of these save file to data/generated/report_qa_pairs.json
 
 # Filter content based on quality
 synthetic-data-kit curate data/generated/report_qa_pairs.json
 
 # Convert to alpaca fine-tuning format and save as HF arrow file
-synthetic-data-kit save-as data/cleaned/report_cleaned.json --format alpaca --storage hf
+synthetic-data-kit save-as data/curated/report_cleaned.json --format alpaca --storage hf
+```
+
+### 2.1 Batch Directory Processing (New)
+
+Process entire directories of files with a single command:
+
+```bash
+# Parse all documents in a directory
+synthetic-data-kit ingest ./documents/
+# Processes all .pdf, .html, .docx, .pptx, .txt files
+# Saves parsed text files to data/parsed/
+
+# Generate QA pairs for all text files
+synthetic-data-kit create ./data/parsed/ --type qa
+# Processes all .txt files in the directory
+# Saves QA pairs to data/generated/
+
+# Curate all generated files
+synthetic-data-kit curate ./data/generated/ --threshold 8.0
+# Processes all .json files in the directory
+# Saves curated files to data/curated/
+
+# Convert all curated files to training format
+synthetic-data-kit save-as ./data/curated/ --format alpaca
+# Processes all .json files in the directory
+# Saves final files to data/final/
+```
+
+### 2.2 Preview Mode
+
+Use `--preview` to see what files would be processed without actually processing them:
+
+```bash
+# Preview files before processing
+synthetic-data-kit ingest ./documents --preview
+# Shows: directory stats, file counts by extension, list of files
+
+synthetic-data-kit create ./data/parsed --preview
+# Shows: .txt files that would be processed
 ```
 ## Configuration
 
@@ -157,23 +197,55 @@ synthetic-data-kit -c my_config.yaml ingest docs/paper.pdf
 
 ## Examples
 
-### Processing a PDF Document
+### Processing a Single PDF Document
 
 ```bash
 # Ingest PDF
 synthetic-data-kit ingest research_paper.pdf
 
 # Generate QA pairs
-synthetic-data-kit create data/output/research_paper.txt -n 30 --threshold 8.0
+synthetic-data-kit create data/parsed/research_paper.txt -n 30
 
 # Curate data
 synthetic-data-kit curate data/generated/research_paper_qa_pairs.json -t 8.5
 
 # Save in OpenAI fine-tuning format (JSON)
-synthetic-data-kit save-as data/cleaned/research_paper_cleaned.json -f ft
+synthetic-data-kit save-as data/curated/research_paper_cleaned.json -f ft
 
 # Save in OpenAI fine-tuning format (HF dataset)
-synthetic-data-kit save-as data/cleaned/research_paper_cleaned.json -f ft --storage hf
+synthetic-data-kit save-as data/curated/research_paper_cleaned.json -f ft --storage hf
+```
+
+### Processing Multiple Documents (Directory)
+
+```bash
+# Process all research papers in a directory
+synthetic-data-kit ingest ./research_papers/
+
+# Generate QA pairs for all parsed documents
+synthetic-data-kit create ./data/parsed/ --type qa -n 30
+
+# Curate all generated files
+synthetic-data-kit curate ./data/generated/ -t 8.5
+
+# Save all curated files in OpenAI fine-tuning format
+synthetic-data-kit save-as ./data/curated/ -f ft --storage hf
+```
+
+### Preview Before Processing
+
+```bash
+# See what files would be processed
+synthetic-data-kit ingest ./research_papers --preview
+# Output:
+# Directory: ./research_papers
+# Total files: 15
+# Supported files: 12
+# Extensions: .pdf (8), .docx (3), .txt (1)
+# Files: paper1.pdf, paper2.pdf, ...
+
+# Preview with verbose output
+synthetic-data-kit create ./data/parsed --preview --verbose
 ```
 
 ### Multimodal Parsing
@@ -216,21 +288,115 @@ synthetic-data-kit ingest my_document.docx --multimodal
 synthetic-data-kit ingest "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 # Generate QA pairs with specific model
-synthetic-data-kit create data/output/youtube_dQw4w9WgXcQ.txt
+synthetic-data-kit create data/parsed/youtube_dQw4w9WgXcQ.txt
 ```
 
 ### Processing Multiple Files
 
 ```bash
-# Bash script to process multiple files
+# NEW: Process entire directories (recommended)
+synthetic-data-kit ingest ./data/input/
+synthetic-data-kit create ./data/parsed/ --type qa -n 20
+synthetic-data-kit curate ./data/generated/ -t 7.5
+synthetic-data-kit save-as ./data/curated/ -f chatml
+
+# LEGACY: Bash script to process multiple files (still supported)
 for file in data/pdf/*.pdf; do
   filename=$(basename "$file" .pdf)
   
   synthetic-data-kit ingest "$file"
-  synthetic-data-kit create "data/output/${filename}.txt" -n 20
+  synthetic-data-kit create "data/parsed/${filename}.txt" -n 20
   synthetic-data-kit curate "data/generated/${filename}_qa_pairs.json" -t 7.5
-  synthetic-data-kit save-as "data/cleaned/${filename}_cleaned.json" -f chatml
+  synthetic-data-kit save-as "data/curated/${filename}_cleaned.json" -f chatml
 done
+```
+
+## Document Processing & Chunking
+
+### How Chunking Works
+
+The Synthetic Data Kit automatically handles documents of any size using an intelligent processing strategy:
+
+- **Small documents** (< 8000 characters): Processed in a single API call for maximum context and quality
+- **Large documents** (≥ 8000 characters): Automatically split into chunks with overlap to maintain context
+
+### Controlling Chunking Behavior
+
+You can customize chunking with CLI flags or config settings for both single files and directories:
+
+```bash
+# Single file with custom chunking
+synthetic-data-kit create document.txt --type qa --chunk-size 2000 --chunk-overlap 100
+
+# Directory processing with custom chunking
+synthetic-data-kit create ./data/parsed/ --type cot --num-pairs 50 --chunk-size 6000 --verbose
+
+# Preview directory processing with chunking details
+synthetic-data-kit create ./data/parsed/ --preview --verbose
+```
+
+### Chunking Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--chunk-size` | 4000 | Size of text chunks in characters |
+| `--chunk-overlap` | 200 | Overlap between chunks to preserve context |
+| `--verbose` | false | Show chunking details and progress |
+
+### Understanding Chunking Output
+
+When using `--verbose`, you'll see chunking information for both single files and directories:
+
+```bash
+# Single file verbose output
+synthetic-data-kit create large_document.txt --type qa --num-pairs 20 --verbose
+
+# Directory verbose output
+synthetic-data-kit create ./data/parsed/ --type qa --num-pairs 20 --verbose
+```
+
+Output:
+```
+# Single file output
+Generating QA pairs...
+Document split into 8 chunks
+Using batch size of 32
+Processing 8 chunks to generate QA pairs...
+  Generated 3 pairs from chunk 1 (total: 3/20)
+  Generated 2 pairs from chunk 2 (total: 5/20)
+  ...
+  Reached target of 20 pairs. Stopping processing.
+Generated 20 QA pairs total (requested: 20)
+
+# Directory output
+Processing directory: ./data/parsed/
+Supported files: 5 (.txt files)
+Progress: ████████████████████████████████████████ 100% (5/5 files)
+✓ document1.txt: Generated 20 QA pairs
+✓ document2.txt: Generated 18 QA pairs
+✗ document3.txt: Failed - Invalid format
+✓ document4.txt: Generated 20 QA pairs
+✓ document5.txt: Generated 15 QA pairs
+
+Processing Summary:
+Total files: 5
+Successful: 4
+Failed: 1
+Total pairs generated: 73
+```
+
+### Chunking logic
+
+Both QA and CoT generation use the same chunking logic for files and directories:
+
+```bash
+# Single file processing
+synthetic-data-kit create document.txt --type qa --num-pairs 100 --chunk-size 3000
+synthetic-data-kit create document.txt --type cot --num-pairs 20 --chunk-size 3000
+
+# Directory processing
+synthetic-data-kit create ./data/parsed/ --type qa --num-pairs 100 --chunk-size 3000
+synthetic-data-kit create ./data/parsed/ --type cot --num-pairs 20 --chunk-size 3000
 ```
 
 ## Advanced Usage

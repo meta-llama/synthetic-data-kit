@@ -54,6 +54,8 @@ def process_file(
     verbose: bool = False,
     multimodal: bool = False,
     provider: Optional[str] = None,
+    chunk_size: Optional[int] = None,
+    chunk_overlap: Optional[int] = None,
 ) -> str:
     """Process a file to generate content
     
@@ -198,6 +200,12 @@ def process_file(
         api_base=api_base,
         model_name=model
     )
+    
+    # Override chunking config if provided
+    if chunk_size is not None:
+        client.config.setdefault('generation', {})['chunk_size'] = chunk_size
+    if chunk_overlap is not None:
+        client.config.setdefault('generation', {})['overlap'] = chunk_overlap
     
     # Debug: Print which provider is being used
     print(f"L Using {client.provider} provider")

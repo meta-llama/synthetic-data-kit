@@ -7,7 +7,11 @@
 import os
 import lance
 import pyarrow as pa
+import tempfile
+import requests
 from typing import Dict, Any
+from urllib.parse import urlparse
+
 
 import io
 from pdfminer.converter import TextConverter

@@ -55,10 +55,16 @@ def get_path_config(config: Dict[str, Any], path_type: str, file_type: Optional[
     paths = config.get('paths', {})
     
     if path_type == 'input':
-        input_paths = paths.get('input', {})
-        if file_type and file_type in input_paths:
-            return input_paths[file_type]
-        return input_paths.get('default', 'data/input')
+        input_config = paths.get('input', 'data/input')
+        # Handle both string and dict formats for input
+        if isinstance(input_config, str):
+            return input_config
+        elif isinstance(input_config, dict):
+            if file_type and file_type in input_config:
+                return input_config[file_type]
+            return input_config.get('default', 'data/input')
+        else:
+            return 'data/input'
     
     elif path_type == 'output':
         output_paths = paths.get('output', {})

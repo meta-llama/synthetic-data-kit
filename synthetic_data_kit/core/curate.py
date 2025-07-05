@@ -105,9 +105,6 @@ def curate_qa_pairs(
         
     rating_temperature = curate_config.get("temperature", 0.1)
     
-    if threshold is None:
-        threshold = curate_config.get("threshold", 7.0)
-    
     # Get rating prompt template
     rating_prompt_template = get_prompt(client.config, "qa_rating")
     
