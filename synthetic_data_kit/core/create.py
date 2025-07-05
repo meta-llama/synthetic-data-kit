@@ -133,7 +133,6 @@ def process_file(
                         num_pairs=num_pairs or 5, 
                         verbose=verbose
                     )
-                    print(f" block result {block_result} \n {'-'*50}")
                     if verbose:
                         logger.info(f"Generated {len(block_result)} QA pairs for block {i+1}")
                     all_results.append(block_result)
