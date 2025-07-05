@@ -288,10 +288,9 @@ def create(
     ),
     multimodal: bool = typer.Option(
         False, "--multimodal", help="Process multimodal data (text + images)"
-
+    ),
     preview: bool = typer.Option(
         False, "--preview", help="Preview files to be processed without actually processing them"
-
     ),
 ):
     """
