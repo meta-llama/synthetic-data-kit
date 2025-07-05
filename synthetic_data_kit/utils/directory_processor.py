@@ -15,7 +15,7 @@ console = Console()
 
 # Supported file extensions for each command
 INGEST_EXTENSIONS = ['.pdf', '.html', '.htm', '.docx', '.pptx', '.txt']
-CREATE_EXTENSIONS = ['.txt']
+CREATE_EXTENSIONS = ['.lance', '.txt'] 
 CURATE_EXTENSIONS = ['.json']
 SAVE_AS_EXTENSIONS = ['.json']
 
@@ -220,6 +220,7 @@ def process_directory_create(
     provider: Optional[str] = None,
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
+    multimodal: Optional[bool] = False
 ) -> Dict[str, Any]:
     """Process all supported files in directory for content creation
     
@@ -254,7 +255,7 @@ def process_directory_create(
         if content_type == "cot-enhance":
             console.print(f"For cot-enhance: looking for .json files", style="yellow")
         else:
-            console.print(f"For {content_type}: looking for .txt files", style="yellow")
+            console.print(f"For {content_type}: looking for .lance files (legacy .txt files also supported)", style="yellow")
         return {
             "total_files": 0,
             "successful": 0,
@@ -303,7 +304,8 @@ def process_directory_create(
                     verbose,
                     provider=provider,
                     chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap
+                    chunk_overlap=chunk_overlap,
+                    multimodal=multimodal
                 )
                 
                 # Record success

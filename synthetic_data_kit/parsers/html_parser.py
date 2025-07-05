@@ -6,64 +6,134 @@
 # HTML Parsers
 
 import os
-import requests
-from typing import Dict, Any
-from urllib.parse import urlparse
+import tempfile
+import logging
+from pathlib import Path
+from .pdf_parser import PDFParser
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 class HTMLParser:
-    """Parser for HTML files and web pages"""
-    
-    def parse(self, file_path: str) -> str:
-        """Parse an HTML file or URL into plain text
+    """Parser for HTML files and web pages using PDF conversion"""
+
+    def parse(self, file_path: str, multimodal: bool = False) -> any:
+        """Parse an HTML file or URL by converting to PDF first.
         
         Args:
-            file_path: Path to the HTML file or URL
+            file_path: Path to the HTML file or URL.
+            multimodal: If True, extract text chunks and associated images.
+                        Otherwise, extract all text into a single string.
             
         Returns:
-            Extracted text from the HTML
+            If multimodal is False, returns a string with all extracted text.
+            If multimodal is True, returns a list of dictionaries, where each
+            dictionary has 'text' and 'image' keys.
+            
+        Raises:
+            ValueError: If the page contains client-side errors.
         """
         try:
-            from bs4 import BeautifulSoup
+            from playwright.sync_api import sync_playwright
         except ImportError:
-            raise ImportError("beautifulsoup4 is required for HTML parsing. Install it with: pip install beautifulsoup4")
+            raise ImportError("playwright is required for HTML parsing. Install it with: pip install playwright && playwright install chromium")
+
+        logger.info(f"Starting to parse: {file_path}")
         
-        # Determine if file_path is a URL or a local file
-        if file_path.startswith(('http://', 'https://')):
-            # It's a URL, fetch content
-            response = requests.get(file_path)
-            response.raise_for_status()
-            html_content = response.text
-        else:
-            # It's a local file, read it
-            with open(file_path, 'r', encoding='utf-8') as f:
-                html_content = f.read()
-        
-        # Parse HTML and extract text
-        soup = BeautifulSoup(html_content, 'html.parser')
-        
-        # Remove script and style elements
-        for script in soup(['script', 'style']):
-            script.extract()
-        
-        # Get text
-        text = soup.get_text()
-        
-        # Break into lines and remove leading and trailing space
-        lines = (line.strip() for line in text.splitlines())
-        # Break multi-headlines into a line each
-        chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-        # Drop blank lines
-        text = '\n'.join(chunk for chunk in chunks if chunk)
-        
-        return text
-    
-    def save(self, content: str, output_path: str) -> None:
-        """Save the extracted text to a file
+        # Create a temporary PDF file
+        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as temp_pdf:
+            temp_pdf_path = temp_pdf.name
+            
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch()
+                page = browser.new_page()
+                
+                # Set viewport to a large size to ensure all content is visible
+                page.set_viewport_size({"width": 1920, "height": 1080})
+                
+                if file_path.startswith(('http://', 'https://')):
+                    logger.info("Loading URL...")
+                    page.goto(file_path, wait_until='networkidle')
+                else:
+                    logger.info("Loading local file...")
+                    file_url = Path(file_path).absolute().as_uri()
+                    page.goto(file_url, wait_until='networkidle')
+                
+                
+                # Wait for images to load
+                logger.info("Waiting for images to load...")
+                page.wait_for_load_state('domcontentloaded')
+                
+                # TODO - Get rid of this section -- redundant 
+                logger.info("Scrolling through page to trigger lazy loading...")
+                page.evaluate("""
+                    () => {
+                        return new Promise((resolve) => {
+                            let totalHeight = 0;
+                            const distance = 100;
+                            const timer = setInterval(() => {
+                                const scrollHeight = document.body.scrollHeight;
+                                window.scrollBy(0, distance);
+                                totalHeight += distance;
+                                
+                                if(totalHeight >= scrollHeight){
+                                    clearInterval(timer);
+                                    resolve();
+                                }
+                            }, 100);
+                        });
+                    }
+                """)
+                
+                page.wait_for_timeout(2000)  # Wait 2 seconds for any remaining images
+                
+                logger.info("Converting to PDF...")
+                # Generate PDF with better quality settings
+                page.pdf(
+                    path=temp_pdf_path,
+                    format='A4',
+                    print_background=True,
+                    prefer_css_page_size=True,
+                    scale=1.0,  # Ensure no scaling
+                    margin={
+                        'top': '20px',
+                        'right': '20px',
+                        'bottom': '20px',
+                        'left': '20px'
+                    }
+                )
+                browser.close()
+                
+            logger.info("PDF conversion completed, now parsing PDF...")
+            # Use the PDF parser to process the converted file
+            pdf_parser = PDFParser()
+            result = pdf_parser.parse(temp_pdf_path, multimodal=multimodal)
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"Error processing HTML: {str(e)}")
+            raise
+        finally:
+            try:
+                os.unlink(temp_pdf_path)
+                logger.info("Temporary PDF file cleaned up")
+            except Exception as e:
+                logger.warning(f"Failed to clean up temporary PDF file: {str(e)}")
+
+    def save(self, content: any, output_path: str) -> None:
+        """Save the extracted content to a Lance file.
         
         Args:
-            content: Extracted text content
-            output_path: Path to save the text
+            content: Extracted content (string or list of dicts)
+            output_path: Path to save the Lance file
         """
+        logger.info(f"Saving content to {output_path}...")
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write(content)
+        
+        # Use the PDF parser's save method since we're using the same data structure
+        pdf_parser = PDFParser()
+        pdf_parser.save(content, output_path)
+        logger.info("Save completed successfully")

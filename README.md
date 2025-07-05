@@ -26,10 +26,10 @@ This toolkit simplifies the journey of:
 
 The tool is designed to follow a simple CLI structure with 4 commands:
 
-- `ingest` various file formats
-- `create` your fine-tuning format: `QA` pairs, `QA` pairs with CoT, `summary` format
-- `curate`: Using Llama as a judge to curate high quality examples. 
-- `save-as`: After that you can simply save these to a format that your fine-tuning workflow requires.
+- `ingest`: Parse various file formats (PDF, HTML, DOCX, PPTX, TXT, YouTube URLs). Supports text-only and multimodal (text + image) extraction for supported formats.
+- `create`: Generate synthetic fine-tuning data from your ingested text, such as Question/Answer (QA) pairs, QA pairs with Chain of Thought (CoT), or summaries.
+- `curate`: Use an LLM as a judge to curate high-quality examples from the generated data.
+- `save-as`: Save the curated data into various formats suitable for fine-tuning (JSONL, Alpaca, FT, ChatML), either as local files or Hugging Face datasets.
 
 You can override any parameter or detail by either using the CLI or overriding the default YAML config.
 
@@ -88,18 +88,19 @@ The flow follows 4 simple steps: `ingest`, `create`, `curate`, `save-as`. You ca
 # Check if your backend is running
 synthetic-data-kit system-check
 
+
 # SINGLE FILE PROCESSING (Original approach)
 # Parse a document to text
 synthetic-data-kit ingest docs/report.pdf
-# This saves file to data/parsed/report.txt
+# This saves file to data/parsed/report.lance
 
 # Generate QA pairs (default)
-synthetic-data-kit create data/parsed/report.txt --type qa
+synthetic-data-kit create data/parsed/report.lance --type qa
 
 OR 
 
 # Generate Chain of Thought (CoT) reasoning examples
-synthetic-data-kit create data/parsed/report.txt --type cot
+synthetic-data-kit create data/parsed/report.lance --type cot
 
 # Both of these save file to data/generated/report_qa_pairs.json
 
@@ -120,9 +121,9 @@ synthetic-data-kit ingest ./documents/
 # Processes all .pdf, .html, .docx, .pptx, .txt files
 # Saves parsed text files to data/parsed/
 
-# Generate QA pairs for all text files
+# Generate QA pairs for all parsed files
 synthetic-data-kit create ./data/parsed/ --type qa
-# Processes all .txt files in the directory
+# Processes all .lance files in the directory (legacy .txt files also supported)
 # Saves QA pairs to data/generated/
 
 # Curate all generated files
@@ -146,7 +147,7 @@ synthetic-data-kit ingest ./documents --preview
 # Shows: directory stats, file counts by extension, list of files
 
 synthetic-data-kit create ./data/parsed --preview
-# Shows: .txt files that would be processed
+# Shows: .lance files that would be processed (legacy .txt files also supported)
 ```
 ## Configuration
 
@@ -203,7 +204,7 @@ synthetic-data-kit -c my_config.yaml ingest docs/paper.pdf
 synthetic-data-kit ingest research_paper.pdf
 
 # Generate QA pairs
-synthetic-data-kit create data/parsed/research_paper.txt -n 30
+synthetic-data-kit create data/parsed/research_paper.lance -n 30
 
 # Curate data
 synthetic-data-kit curate data/generated/research_paper_qa_pairs.json -t 8.5
@@ -247,6 +248,39 @@ synthetic-data-kit ingest ./research_papers --preview
 synthetic-data-kit create ./data/parsed --preview --verbose
 ```
 
+### Multimodal Parsing
+
+The `ingest` command supports a `--multimodal` flag for DOCX, PDF, PPTX, and HTML files. When this flag is used, the toolkit attempts to extract images alongside text.
+
+**Output Format:**
+
+-   If `--multimodal` is **not** used, or for unsupported file types (like TXT, YouTube), the output Lance dataset in `data/output/parsed/` will contain a single `text` column.
+-   If `--multimodal` **is** used for a supported file type:
+    -   The output Lance dataset will contain two columns:
+        -   `text` (string): The extracted text content.
+        -   `image` (binary): The raw image bytes (e.g., PNG, JPEG). This will be `None` (null) if no image is associated with a given text entry.
+
+**Image-Text Association Heuristics:**
+
+The association of images with text currently follows these heuristics:
+
+-   **DOCX (`.docx`):** The *first image* found anywhere in the document is associated with *each text block* (paragraph or table cell text) extracted from the document. If no image is found in the document, the 'image' field will be `None` for all text entries.
+-   **PDF (`.pdf`):** The *first image* encountered on a given page is associated with *all text extracted from that same page*. If a page contains no images, the 'image' field will be `None` for all text entries from that page. Text is grouped by page.
+-   **PPTX (`.pptx`):** The *first image* found on a given slide is associated with *all text extracted from that same slide* (including title, content shapes, and notes). If a slide contains no images, the 'image' field will be `None` for that slide's text entry. Text is grouped by slide.
+-   **HTML (`.html`, `.htm`):**
+    -   Text from common content tags (e.g., `<p>`, `<h1>`-`<h6>`, `<li>`, `<td>`, `<span>`, `<blockquote>`) is extracted. These text entries usually have their 'image' field set to `None`.
+    -   For `<img>` tags:
+        -   The `alt` attribute's text is extracted into the 'text' field. If no `alt` text is present, this field may be an empty string.
+        -   The image itself is downloaded (handling data URIs, absolute, and relative URLs) and its bytes are stored in the 'image' field. If the image cannot be fetched, this field will be `None`.
+    -   This typically results in some rows in the Lance dataset being text-centric (image is `None`) and others being image-centric (text is the `alt` text).
+
+**Example of multimodal ingest:**
+
+```bash
+synthetic-data-kit ingest my_document.docx --multimodal
+# Output: data/output/parsed/my_document.lance (with 'text' and 'image' columns)
+```
+
 ### Processing a YouTube Video
 
 ```bash
@@ -254,7 +288,7 @@ synthetic-data-kit create ./data/parsed --preview --verbose
 synthetic-data-kit ingest "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 # Generate QA pairs with specific model
-synthetic-data-kit create data/parsed/youtube_dQw4w9WgXcQ.txt
+synthetic-data-kit create data/parsed/youtube_dQw4w9WgXcQ.lance
 ```
 
 ### Processing Multiple Files
@@ -271,7 +305,7 @@ for file in data/pdf/*.pdf; do
   filename=$(basename "$file" .pdf)
   
   synthetic-data-kit ingest "$file"
-  synthetic-data-kit create "data/parsed/${filename}.txt" -n 20
+  synthetic-data-kit create "data/parsed/${filename}.lance" -n 20
   synthetic-data-kit curate "data/generated/${filename}_qa_pairs.json" -t 7.5
   synthetic-data-kit save-as "data/curated/${filename}_cleaned.json" -f chatml
 done
@@ -292,7 +326,7 @@ You can customize chunking with CLI flags or config settings for both single fil
 
 ```bash
 # Single file with custom chunking
-synthetic-data-kit create document.txt --type qa --chunk-size 2000 --chunk-overlap 100
+synthetic-data-kit create document.lance --type qa --chunk-size 2000 --chunk-overlap 100
 
 # Directory processing with custom chunking
 synthetic-data-kit create ./data/parsed/ --type cot --num-pairs 50 --chunk-size 6000 --verbose
@@ -315,7 +349,7 @@ When using `--verbose`, you'll see chunking information for both single files an
 
 ```bash
 # Single file verbose output
-synthetic-data-kit create large_document.txt --type qa --num-pairs 20 --verbose
+synthetic-data-kit create large_document.lance --type qa --num-pairs 20 --verbose
 
 # Directory verbose output
 synthetic-data-kit create ./data/parsed/ --type qa --num-pairs 20 --verbose
@@ -336,13 +370,13 @@ Generated 20 QA pairs total (requested: 20)
 
 # Directory output
 Processing directory: ./data/parsed/
-Supported files: 5 (.txt files)
+Supported files: 5 (.lance files)
 Progress: ████████████████████████████████████████ 100% (5/5 files)
-✓ document1.txt: Generated 20 QA pairs
-✓ document2.txt: Generated 18 QA pairs
-✗ document3.txt: Failed - Invalid format
-✓ document4.txt: Generated 20 QA pairs
-✓ document5.txt: Generated 15 QA pairs
+✓ document1.lance: Generated 20 QA pairs
+✓ document2.lance: Generated 18 QA pairs
+✗ document3.lance: Failed - Invalid format
+✓ document4.lance: Generated 20 QA pairs
+✓ document5.lance: Generated 15 QA pairs
 
 Processing Summary:
 Total files: 5
@@ -357,8 +391,8 @@ Both QA and CoT generation use the same chunking logic for files and directories
 
 ```bash
 # Single file processing
-synthetic-data-kit create document.txt --type qa --num-pairs 100 --chunk-size 3000
-synthetic-data-kit create document.txt --type cot --num-pairs 20 --chunk-size 3000
+synthetic-data-kit create document.lance --type qa --num-pairs 100 --chunk-size 3000
+synthetic-data-kit create document.lance --type cot --num-pairs 20 --chunk-size 3000
 
 # Directory processing
 synthetic-data-kit create ./data/parsed/ --type qa --num-pairs 100 --chunk-size 3000
