@@ -15,7 +15,7 @@ console = Console()
 
 # Supported file extensions for each command
 INGEST_EXTENSIONS = ['.pdf', '.html', '.htm', '.docx', '.pptx', '.txt']
-CREATE_EXTENSIONS = ['.txt']
+CREATE_EXTENSIONS = ['.lance', '.txt'] 
 CURATE_EXTENSIONS = ['.json']
 SAVE_AS_EXTENSIONS = ['.json']
 
@@ -255,7 +255,7 @@ def process_directory_create(
         if content_type == "cot-enhance":
             console.print(f"For cot-enhance: looking for .json files", style="yellow")
         else:
-            console.print(f"For {content_type}: looking for .txt files", style="yellow")
+            console.print(f"For {content_type}: looking for .lance files (legacy .txt files also supported)", style="yellow")
         return {
             "total_files": 0,
             "successful": 0,

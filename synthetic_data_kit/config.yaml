@@ -35,7 +35,7 @@ api-endpoint:
 
 # Ingest configuration
 ingest:
-  default_format: "txt"  # Default output format for parsed files
+  default_format: "lance"  # Default output format for parsed files (legacy .txt also supported)
   youtube_captions: "auto"  # Options: "auto", "manual" - caption preference
 
 # LLM generation parameters

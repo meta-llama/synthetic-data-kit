@@ -92,15 +92,15 @@ synthetic-data-kit system-check
 # SINGLE FILE PROCESSING (Original approach)
 # Parse a document to text
 synthetic-data-kit ingest docs/report.pdf
-# This saves file to data/parsed/report.txt
+# This saves file to data/parsed/report.lance
 
 # Generate QA pairs (default)
-synthetic-data-kit create data/parsed/report.txt --type qa
+synthetic-data-kit create data/parsed/report.lance --type qa
 
 OR 
 
 # Generate Chain of Thought (CoT) reasoning examples
-synthetic-data-kit create data/parsed/report.txt --type cot
+synthetic-data-kit create data/parsed/report.lance --type cot
 
 # Both of these save file to data/generated/report_qa_pairs.json
 
@@ -121,9 +121,9 @@ synthetic-data-kit ingest ./documents/
 # Processes all .pdf, .html, .docx, .pptx, .txt files
 # Saves parsed text files to data/parsed/
 
-# Generate QA pairs for all text files
+# Generate QA pairs for all parsed files
 synthetic-data-kit create ./data/parsed/ --type qa
-# Processes all .txt files in the directory
+# Processes all .lance files in the directory (legacy .txt files also supported)
 # Saves QA pairs to data/generated/
 
 # Curate all generated files
@@ -147,7 +147,7 @@ synthetic-data-kit ingest ./documents --preview
 # Shows: directory stats, file counts by extension, list of files
 
 synthetic-data-kit create ./data/parsed --preview
-# Shows: .txt files that would be processed
+# Shows: .lance files that would be processed (legacy .txt files also supported)
 ```
 ## Configuration
 
@@ -204,7 +204,7 @@ synthetic-data-kit -c my_config.yaml ingest docs/paper.pdf
 synthetic-data-kit ingest research_paper.pdf
 
 # Generate QA pairs
-synthetic-data-kit create data/parsed/research_paper.txt -n 30
+synthetic-data-kit create data/parsed/research_paper.lance -n 30
 
 # Curate data
 synthetic-data-kit curate data/generated/research_paper_qa_pairs.json -t 8.5
@@ -288,7 +288,7 @@ synthetic-data-kit ingest my_document.docx --multimodal
 synthetic-data-kit ingest "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 # Generate QA pairs with specific model
-synthetic-data-kit create data/parsed/youtube_dQw4w9WgXcQ.txt
+synthetic-data-kit create data/parsed/youtube_dQw4w9WgXcQ.lance
 ```
 
 ### Processing Multiple Files
@@ -305,7 +305,7 @@ for file in data/pdf/*.pdf; do
   filename=$(basename "$file" .pdf)
   
   synthetic-data-kit ingest "$file"
-  synthetic-data-kit create "data/parsed/${filename}.txt" -n 20
+  synthetic-data-kit create "data/parsed/${filename}.lance" -n 20
   synthetic-data-kit curate "data/generated/${filename}_qa_pairs.json" -t 7.5
   synthetic-data-kit save-as "data/curated/${filename}_cleaned.json" -f chatml
 done
@@ -326,7 +326,7 @@ You can customize chunking with CLI flags or config settings for both single fil
 
 ```bash
 # Single file with custom chunking
-synthetic-data-kit create document.txt --type qa --chunk-size 2000 --chunk-overlap 100
+synthetic-data-kit create document.lance --type qa --chunk-size 2000 --chunk-overlap 100
 
 # Directory processing with custom chunking
 synthetic-data-kit create ./data/parsed/ --type cot --num-pairs 50 --chunk-size 6000 --verbose
@@ -349,7 +349,7 @@ When using `--verbose`, you'll see chunking information for both single files an
 
 ```bash
 # Single file verbose output
-synthetic-data-kit create large_document.txt --type qa --num-pairs 20 --verbose
+synthetic-data-kit create large_document.lance --type qa --num-pairs 20 --verbose
 
 # Directory verbose output
 synthetic-data-kit create ./data/parsed/ --type qa --num-pairs 20 --verbose
@@ -370,13 +370,13 @@ Generated 20 QA pairs total (requested: 20)
 
 # Directory output
 Processing directory: ./data/parsed/
-Supported files: 5 (.txt files)
+Supported files: 5 (.lance files)
 Progress: ████████████████████████████████████████ 100% (5/5 files)
-✓ document1.txt: Generated 20 QA pairs
-✓ document2.txt: Generated 18 QA pairs
-✗ document3.txt: Failed - Invalid format
-✓ document4.txt: Generated 20 QA pairs
-✓ document5.txt: Generated 15 QA pairs
+✓ document1.lance: Generated 20 QA pairs
+✓ document2.lance: Generated 18 QA pairs
+✗ document3.lance: Failed - Invalid format
+✓ document4.lance: Generated 20 QA pairs
+✓ document5.lance: Generated 15 QA pairs
 
 Processing Summary:
 Total files: 5
@@ -391,8 +391,8 @@ Both QA and CoT generation use the same chunking logic for files and directories
 
 ```bash
 # Single file processing
-synthetic-data-kit create document.txt --type qa --num-pairs 100 --chunk-size 3000
-synthetic-data-kit create document.txt --type cot --num-pairs 20 --chunk-size 3000
+synthetic-data-kit create document.lance --type qa --num-pairs 100 --chunk-size 3000
+synthetic-data-kit create document.lance --type cot --num-pairs 20 --chunk-size 3000
 
 # Directory processing
 synthetic-data-kit create ./data/parsed/ --type qa --num-pairs 100 --chunk-size 3000

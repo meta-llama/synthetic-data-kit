@@ -78,7 +78,12 @@ def process_file(
     
     # Determine file type based on extension
     file_extension = os.path.splitext(file_path)[1].lower()
+    
+    # Initialize document_text variable
+    document_text = None
+    
     if file_extension == '.lance':
+        import lance
         dataset = lance.dataset(file_path)
         # Check if this is a multimodal dataset
         is_multimodal = multimodal and 'text' in dataset.schema.names and 'image' in dataset.schema.names
@@ -183,6 +188,8 @@ def process_file(
 
     else:
         # Default behavior for text files
+        if os.path.isdir(file_path):
+            raise ValueError(f"Cannot process directory as a text file: {file_path}. If this is a Lance dataset, ensure the extension is .lance. Otherwise, provide a valid text file.")
         with open(file_path, 'r', encoding='utf-8') as f:
             document_text = f.read()
         
@@ -216,7 +223,9 @@ def process_file(
     if content_type == "qa":
         generator = QAGenerator(client, config_path)
 
-        document_text = read_json(file_path)
+        # For text files, we need to read the content
+        if file_extension != '.lance':
+            document_text = read_json(file_path)
         
         # Get num_pairs from args or config
         if num_pairs is None:
@@ -248,7 +257,9 @@ def process_file(
     elif content_type == "summary":
         generator = QAGenerator(client, config_path)
 
-        document_text = read_json(file_path)
+        # For text files, we need to read the content
+        if file_extension != '.lance':
+            document_text = read_json(file_path)
         
         if verbose:
             logger.info("Generating summary")
@@ -273,7 +284,9 @@ def process_file(
         # Initialize the CoT generator
         generator = COTGenerator(client, config_path)
 
-        document_text = read_json(file_path)
+        # For text files, we need to read the content
+        if file_extension != '.lance':
+            document_text = read_json(file_path)
         
         # Get num_examples from args or config
         if num_pairs is None:
