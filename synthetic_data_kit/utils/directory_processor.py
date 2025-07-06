@@ -44,12 +44,14 @@ def get_supported_files(directory: str, extensions: List[str]) -> List[str]:
     try:
         for filename in os.listdir(directory):
             file_path = os.path.join(directory, filename)
-            
-            # Skip directories, only process files
+            file_ext = os.path.splitext(filename)[1].lower()
+            # If it's a file and has a supported extension, add it
             if os.path.isfile(file_path):
-                # Check if file has supported extension
-                file_ext = os.path.splitext(filename)[1].lower()
                 if file_ext in extensions:
+                    supported_files.append(file_path)
+            # If it's a directory and the extension is .lance, treat as Lance dataset
+            elif os.path.isdir(file_path):
+                if '.lance' in extensions and filename.lower().endswith('.lance'):
                     supported_files.append(file_path)
     
     except PermissionError:
