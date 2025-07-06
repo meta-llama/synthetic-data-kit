@@ -251,7 +251,7 @@ def ingest(
                 console.print("Preview mode is only available for directories. Processing single file...", style="yellow")
             
             with console.status(f"Processing {input}..."):
-                output_path = process_file(input, output_dir, name, ctx.config)
+                output_path = process_file(input, output_dir, name, ctx.config, multimodal=multimodal)
             console.print(f"✅ Text successfully extracted to [bold]{output_path}[/bold]", style="green")
             return 0
             
