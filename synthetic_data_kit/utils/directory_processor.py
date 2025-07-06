@@ -61,7 +61,8 @@ def process_directory_ingest(
     directory: str,
     output_dir: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
-    verbose: bool = False
+    verbose: bool = False,
+    multimodal: bool = False
 ) -> Dict[str, Any]:
     """Process all supported files in directory for ingestion
     
@@ -70,6 +71,7 @@ def process_directory_ingest(
         output_dir: Directory to save processed files
         config: Configuration dictionary
         verbose: Show detailed progress
+        multimodal: Enable multimodal processing (text + images)
     
     Returns:
         Dictionary with processing results
@@ -119,7 +121,7 @@ def process_directory_ingest(
             
             try:
                 # Process individual file
-                output_path = process_file(file_path, output_dir, None, config)
+                output_path = process_file(file_path, output_dir, None, config, multimodal=multimodal)
                 
                 # Record success
                 results["successful"] += 1

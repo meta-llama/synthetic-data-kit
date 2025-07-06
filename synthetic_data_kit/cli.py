@@ -234,7 +234,8 @@ def ingest(
                 directory=input,
                 output_dir=output_dir,
                 config=ctx.config,
-                verbose=verbose
+                verbose=verbose,
+                multimodal=multimodal
             )
             
             # Return appropriate exit code
