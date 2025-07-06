@@ -98,7 +98,7 @@ def get_vllm_config(config: Dict[str, Any]) -> Dict[str, Any]:
         'retry_delay': 1.0
     })
 
-def get_openai_config(config: Dict[str, Any]) -> Dict[str, Any]:
+def get_endpoint_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Get API endpoint configuration"""
     return config.get('api-endpoint', {
         'api_base': None,  # None means use default API base URL
@@ -107,6 +107,7 @@ def get_openai_config(config: Dict[str, Any]) -> Dict[str, Any]:
         'max_retries': 3,
         'retry_delay': 1.0
     })
+
 
 def get_generation_config(config: Dict[str, Any]) -> Dict[str, Any]:
     """Get generation configuration"""

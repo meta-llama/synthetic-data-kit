@@ -303,7 +303,8 @@ class QAGenerator:
             os.environ['SDK_VERBOSE'] = 'false'
         
         # Generate summary
-        summary = self.generate_summary(document_text)
+        max_context_length = self.generation_config.get("max_context_length", 8000)
+        summary = self.generate_summary(document_text[0:max_context_length])
         
         # Generate QA pairs
         qa_pairs = self.generate_qa_pairs(document_text, summary, num_pairs=num_pairs)

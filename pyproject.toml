@@ -25,6 +25,7 @@ dependencies = [
     "flask-wtf>=1.0.0",
     "bootstrap-flask>=2.2.0",
     "beautifulsoup4>=4.12.0",
+    "together>=1.5.17",
 ]
 
 # These fields appear in pip show

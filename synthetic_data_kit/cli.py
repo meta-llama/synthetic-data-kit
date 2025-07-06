@@ -13,7 +13,7 @@ import requests
 from rich.console import Console
 from rich.table import Table
 
-from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider, get_path_config
+from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_endpoint_config, get_llm_provider, get_path_config
 from synthetic_data_kit.core.context import AppContext
 from synthetic_data_kit.server.app import run_server
 
@@ -74,7 +74,7 @@ def system_check(
     
     if selected_provider == "api-endpoint":
         # Get API endpoint config
-        api_endpoint_config = get_openai_config(ctx.config)
+        api_endpoint_config = get_endpoint_config(ctx.config)
         api_base = api_base or api_endpoint_config.get("api_base")
         
         # Check for environment variables
@@ -94,9 +94,10 @@ def system_check(
                 # Try to import OpenAI
                 try:
                     from openai import OpenAI
+                    from together import Together
                 except ImportError:
                     console.print("L API endpoint package not installed", style="red")
-                    console.print("Install with: pip install openai>=1.0.0", style="yellow")
+                    console.print("Install with: pip install openai>=1.0.0 or together>=1.5.17", style="yellow")
                     return 1
                 
                 # Create client
@@ -108,7 +109,13 @@ def system_check(
                 
                 # Check API access
                 try:
-                    client = OpenAI(**client_kwargs)
+                    match api_endpoint_config.get("type"):
+                        case "openai":
+                            client = OpenAI(**client_kwargs)
+                        case "together":
+                            client = Together(**client_kwargs)
+                        case _:
+                            raise Exception("Unsupported API endpoint. Only support OpenAI and Together")
                     # Try a simple models list request to check connectivity
                     models = client.models.list()
                     console.print(f" API endpoint access confirmed", style="green")
@@ -315,7 +322,7 @@ def create(
     
     if provider == "api-endpoint":
         # Use API endpoint config
-        api_endpoint_config = get_openai_config(ctx.config)
+        api_endpoint_config = get_endpoint_config(ctx.config)
         api_base = api_base or api_endpoint_config.get("api_base")
         model = model or api_endpoint_config.get("model")
         # No server check needed for API endpoint
@@ -475,7 +482,7 @@ def curate(
     
     if provider == "api-endpoint":
         # Use API endpoint config
-        api_endpoint_config = get_openai_config(ctx.config)
+        api_endpoint_config = get_endpoint_config(ctx.config)
         api_base = api_base or api_endpoint_config.get("api_base")
         model = model or api_endpoint_config.get("model")
         # No server check needed for API endpoint
@@ -484,7 +491,7 @@ def curate(
         vllm_config = get_vllm_config(ctx.config)
         api_base = api_base or vllm_config.get("api_base")
         model = model or vllm_config.get("model")
-        
+
         # Check vLLM server availability
         try:
             response = requests.get(f"{api_base}/models", timeout=2)

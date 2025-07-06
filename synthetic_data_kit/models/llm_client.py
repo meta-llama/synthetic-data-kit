@@ -13,7 +13,7 @@ import logging
 import asyncio
 from pathlib import Path
 
-from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider
+from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_endpoint_config, get_llm_provider
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -22,11 +22,18 @@ logger = logging.getLogger(__name__)
 # Try to import OpenAI, but handle case where it's not installed
 try:
     from openai import OpenAI
-    from openai.types.chat import ChatCompletion
     OPENAI_AVAILABLE = True
 except ImportError:
     OPENAI_AVAILABLE = False
     logger.warning("OpenAI package not installed. To use API endpoint provider, install with 'pip install openai>=1.0.0'")
+try:    
+    from together import Together
+    TOGETHER_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+    TOGETHER_AVAILABLE = False
+    logger.warning("Together package not installed. To use API endpoint provider, install with 'pip install together>=1.5.17'")
+
 
 class LLMClient:
     def __init__(self, 
@@ -55,11 +62,11 @@ class LLMClient:
         self.provider = provider or get_llm_provider(self.config)
         
         if self.provider == 'api-endpoint':
-            if not OPENAI_AVAILABLE:
-                raise ImportError("OpenAI package is not installed. Install with 'pip install openai>=1.0.0'")
+            if not (OPENAI_AVAILABLE or TOGETHER_AVAILABLE):
+                raise ImportError("OpenAI/Together package is not installed. Install with 'pip install openai>=1.0.0' or 'pip install together>=1.5.17'")
             
-            # Load API endpoint configuration
-            api_endpoint_config = get_openai_config(self.config)
+            # Load API endpoint configuration 
+            api_endpoint_config = get_endpoint_config(self.config)
             
             # Set parameters, with CLI overrides taking precedence
             self.api_base = api_base or api_endpoint_config.get('api_base')
@@ -78,9 +85,12 @@ class LLMClient:
             self.model = model_name or api_endpoint_config.get('model')
             self.max_retries = max_retries or api_endpoint_config.get('max_retries')
             self.retry_delay = retry_delay or api_endpoint_config.get('retry_delay')
+            self.endpoint_type = api_endpoint_config.get('type')
+            self.sleep_time = api_endpoint_config.get('sleep_time')
             
-            # Initialize OpenAI client
-            self._init_openai_client()
+            # Initialize OpenAI compatible client
+            self._init_endpoint_client() 
+
         else:  # Default to vLLM
             # Load vLLM configuration
             vllm_config = get_vllm_config(self.config)
@@ -97,8 +107,8 @@ class LLMClient:
             if not available:
                 raise ConnectionError(f"VLLM server not available at {self.api_base}: {info}")
     
-    def _init_openai_client(self):
-        """Initialize OpenAI client with appropriate configuration"""
+    def _init_endpoint_client(self):
+        """Initialize Endpoint client with appropriate configuration"""
         client_kwargs = {}
         
         # Add API key if provided
@@ -113,8 +123,13 @@ class LLMClient:
         if self.api_base:
             print(f"Using API base URL: {self.api_base}")
             client_kwargs['base_url'] = self.api_base
-        
-        self.openai_client = OpenAI(**client_kwargs)
+        match self.endpoint_type:
+            case "openai":
+                self.endpoint_client = OpenAI(**client_kwargs)
+            case "together":
+                self.endpoint_client = Together(**client_kwargs)
+            case _:
+                raise Exception("Client has to be OpenAI compatible. Please install openai or together")
     
     def _check_vllm_server(self) -> tuple:
         """Check if the VLLM server is running and accessible"""
@@ -151,11 +166,11 @@ class LLMClient:
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
         if self.provider == 'api-endpoint':
-            return self._openai_chat_completion(messages, temperature, max_tokens, top_p, verbose)
+            return self._endpoint_chat_completion(messages, temperature, max_tokens, top_p, verbose)
         else:  # Default to vLLM
             return self._vllm_chat_completion(messages, temperature, max_tokens, top_p, verbose)
     
-    def _openai_chat_completion(self, 
+    def _endpoint_chat_completion(self, 
                               messages: List[Dict[str, str]],
                               temperature: float,
                               max_tokens: int,
@@ -169,7 +184,7 @@ class LLMClient:
         for attempt in range(self.max_retries):
             try:
                 # Create the completion request
-                response = self.openai_client.chat.completions.create(
+                response = self.endpoint_client.chat.completions.create(
                     model=self.model,
                     messages=messages,
                     temperature=temperature,
@@ -337,7 +352,7 @@ class LLMClient:
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
         if self.provider == 'api-endpoint':
-            return self._openai_batch_completion(message_batches, temperature, max_tokens, top_p, batch_size, verbose)
+            return self._endpoint_batch_completion(message_batches, temperature, max_tokens, top_p, batch_size, verbose)
         else:  # Default to vLLM
             return self._vllm_batch_completion(message_batches, temperature, max_tokens, top_p, batch_size, verbose)
     
@@ -349,19 +364,29 @@ class LLMClient:
                                     verbose: bool,
                                     debug_mode: bool):
         """Process a single message set asynchronously using the OpenAI API"""
-        try:
-            from openai import AsyncOpenAI
-        except ImportError:
-            raise ImportError("The 'openai' package is required for this functionality. Please install it using 'pip install openai>=1.0.0'.")
-        
         # Initialize the async OpenAI client
         client_kwargs = {}
         if self.api_key:
             client_kwargs['api_key'] = self.api_key
         if self.api_base:
             client_kwargs['base_url'] = self.api_base
-            
-        async_client = AsyncOpenAI(**client_kwargs)
+
+        match self.endpoint_type:
+            case "openai":
+                try:
+                    from openai import AsyncOpenAI
+                    async_client = AsyncOpenAI(**client_kwargs)
+                except ImportError:
+                    raise ImportError("The 'openai' package is required for this functionality. Please install it using 'pip install openai>=1.0.0'.")
+            case "together":
+                try:
+                    from together import AsyncTogether
+                    async_client = AsyncTogether(**client_kwargs)
+                except ImportError:
+                    raise ImportError("The 'together' package is required for this functionality. Please install it using 'pip install together>=1.5.17'.")
+            case _:
+                raise Exception("The 'openai' or 'together' package is required for this functionality")
+        
         
         for attempt in range(self.max_retries):
             try:
@@ -481,7 +506,7 @@ class LLMClient:
                 
                 await asyncio.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
     
-    def _openai_batch_completion(self,
+    def _endpoint_batch_completion(self,
                                 message_batches: List[List[Dict[str, str]]],
                                 temperature: float,
                                 max_tokens: int,
@@ -527,9 +552,10 @@ class LLMClient:
             
             # Small delay between batches to avoid rate limits
             if i + batch_size < len(message_batches):
-                time.sleep(0.5)
+                time.sleep(self.sleep_time)
         
         return results
+    
     
     def _vllm_batch_completion(self,
                              message_batches: List[List[Dict[str, str]]],
@@ -587,7 +613,7 @@ class LLMClient:
             
             # Small delay between batches
             if i + batch_size < len(message_batches):
-                time.sleep(0.1)
+                time.sleep(self.sleep_time)
         
         return results
     
