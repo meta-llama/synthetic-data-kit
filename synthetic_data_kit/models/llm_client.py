@@ -129,7 +129,7 @@ class LLMClient:
             case "together":
                 self.endpoint_client = Together(**client_kwargs)
             case _:
-                raise Exception("Client has to be OpenAI compatible. Please install openai or together")
+                self.endpoint_client = OpenAI(**client_kwargs)
     
     def _check_vllm_server(self) -> tuple:
         """Check if the VLLM server is running and accessible"""
@@ -385,7 +385,11 @@ class LLMClient:
                 except ImportError:
                     raise ImportError("The 'together' package is required for this functionality. Please install it using 'pip install together>=1.5.17'.")
             case _:
-                raise Exception("The 'openai' or 'together' package is required for this functionality")
+                try:
+                    from openai import AsyncOpenAI
+                    async_client = AsyncOpenAI(**client_kwargs)
+                except ImportError:
+                    raise ImportError("The 'openai' package is required for this functionality. Please install it using 'pip install openai>=1.0.0'.")
         
         
         for attempt in range(self.max_retries):

@@ -115,7 +115,7 @@ def system_check(
                         case "together":
                             client = Together(**client_kwargs)
                         case _:
-                            raise Exception("Unsupported API endpoint. Only support OpenAI and Together")
+                            client = OpenAI(**client_kwargs)
                     # Try a simple models list request to check connectivity
                     models = client.models.list()
                     console.print(f" API endpoint access confirmed", style="green")
