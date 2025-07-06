@@ -15,7 +15,7 @@ console = Console()
 
 # Supported file extensions for each command
 INGEST_EXTENSIONS = ['.pdf', '.html', '.htm', '.docx', '.pptx', '.txt']
-CREATE_EXTENSIONS = ['.txt']
+CREATE_EXTENSIONS = ['.lance', '.txt'] 
 CURATE_EXTENSIONS = ['.json']
 SAVE_AS_EXTENSIONS = ['.json']
 
@@ -44,12 +44,14 @@ def get_supported_files(directory: str, extensions: List[str]) -> List[str]:
     try:
         for filename in os.listdir(directory):
             file_path = os.path.join(directory, filename)
-            
-            # Skip directories, only process files
+            file_ext = os.path.splitext(filename)[1].lower()
+            # If it's a file and has a supported extension, add it
             if os.path.isfile(file_path):
-                # Check if file has supported extension
-                file_ext = os.path.splitext(filename)[1].lower()
                 if file_ext in extensions:
+                    supported_files.append(file_path)
+            # If it's a directory and the extension is .lance, treat as Lance dataset
+            elif os.path.isdir(file_path):
+                if '.lance' in extensions and filename.lower().endswith('.lance'):
                     supported_files.append(file_path)
     
     except PermissionError:
@@ -61,7 +63,8 @@ def process_directory_ingest(
     directory: str,
     output_dir: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
-    verbose: bool = False
+    verbose: bool = False,
+    multimodal: bool = False
 ) -> Dict[str, Any]:
     """Process all supported files in directory for ingestion
     
@@ -70,6 +73,7 @@ def process_directory_ingest(
         output_dir: Directory to save processed files
         config: Configuration dictionary
         verbose: Show detailed progress
+        multimodal: Enable multimodal processing (text + images)
     
     Returns:
         Dictionary with processing results
@@ -119,7 +123,7 @@ def process_directory_ingest(
             
             try:
                 # Process individual file
-                output_path = process_file(file_path, output_dir, None, config)
+                output_path = process_file(file_path, output_dir, None, config, multimodal=multimodal)
                 
                 # Record success
                 results["successful"] += 1
@@ -220,6 +224,7 @@ def process_directory_create(
     provider: Optional[str] = None,
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
+    multimodal: Optional[bool] = False
 ) -> Dict[str, Any]:
     """Process all supported files in directory for content creation
     
@@ -254,7 +259,7 @@ def process_directory_create(
         if content_type == "cot-enhance":
             console.print(f"For cot-enhance: looking for .json files", style="yellow")
         else:
-            console.print(f"For {content_type}: looking for .txt files", style="yellow")
+            console.print(f"For {content_type}: looking for .lance files (legacy .txt files also supported)", style="yellow")
         return {
             "total_files": 0,
             "successful": 0,
@@ -303,7 +308,8 @@ def process_directory_create(
                     verbose,
                     provider=provider,
                     chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap
+                    chunk_overlap=chunk_overlap,
+                    multimodal=multimodal
                 )
                 
                 # Record success

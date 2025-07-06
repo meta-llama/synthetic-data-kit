@@ -1,3 +1,5 @@
+data/*
+**.pyc
 venv
 .venv
 __pycache__

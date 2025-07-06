@@ -80,6 +80,7 @@ def process_file(
     output_dir: Optional[str] = None,
     output_name: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
+    multimodal: bool = False,
 ) -> str:
     """Process a file using the appropriate parser
 
@@ -100,8 +101,8 @@ def process_file(
     parser = determine_parser(file_path, config)
 
     # Parse the file
-    content = parser.parse(file_path)
-
+    content = parser.parse(file_path, multimodal=multimodal)
+    
     # Generate output filename if not provided
     if not output_name:
         if file_path.startswith(("http://", "https://")):
@@ -109,24 +110,22 @@ def process_file(
             if "youtube.com" in file_path or "youtu.be" in file_path:
                 # Use video ID for YouTube URLs
                 import re
-
-                video_id = re.search(r"(?:v=|\.be/)([^&]+)", file_path).group(1)
-                output_name = f"youtube_{video_id}.txt"
+                video_id = re.search(r'(?:v=|\.be/)([^&]+)', file_path).group(1)
+                output_name = f"youtube_{video_id}.lance"
             else:
                 # Use domain for other URLs
                 from urllib.parse import urlparse
-
-                domain = urlparse(file_path).netloc.replace(".", "_")
-                output_name = f"{domain}.txt"
+                domain = urlparse(file_path).netloc.replace('.', '_')
+                output_name = f"{domain}.lance"
         else:
-            # Use original filename with .txt extension
+            # Use original filename with .lance extension
             base_name = os.path.basename(file_path)
-            output_name = os.path.splitext(base_name)[0] + ".txt"
-
-    # Ensure .txt extension
-    if not output_name.endswith(".txt"):
-        output_name += ".txt"
-
+            output_name = os.path.splitext(base_name)[0] + '.lance'
+    
+    # Ensure .lance extension
+    if not output_name.endswith('.lance'):
+        output_name += '.lance'
+    
     # Save the content
     output_path = os.path.join(output_dir, output_name)
     parser.save(content, output_path)

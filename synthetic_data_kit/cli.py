@@ -169,6 +169,9 @@ def ingest(
     preview: bool = typer.Option(
         False, "--preview", help="Preview files to be processed without actually processing them"
     ),
+    multimodal: bool = typer.Option(
+        False, "--multimodal", help="Enable multimodal processing to include images."
+    ),
 ):
     """
     Parse documents (PDF, HTML, YouTube, DOCX, PPT, TXT) into clean text.
@@ -231,7 +234,8 @@ def ingest(
                 directory=input,
                 output_dir=output_dir,
                 config=ctx.config,
-                verbose=verbose
+                verbose=verbose,
+                multimodal=multimodal
             )
             
             # Return appropriate exit code
@@ -247,7 +251,7 @@ def ingest(
                 console.print("Preview mode is only available for directories. Processing single file...", style="yellow")
             
             with console.status(f"Processing {input}..."):
-                output_path = process_file(input, output_dir, name, ctx.config)
+                output_path = process_file(input, output_dir, name, ctx.config, multimodal=multimodal)
             console.print(f"✅ Text successfully extracted to [bold]{output_path}[/bold]", style="green")
             return 0
             
@@ -283,27 +287,32 @@ def create(
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed output"
     ),
+    multimodal: bool = typer.Option(
+        False, "--multimodal", help="Process multimodal data (text + images)"
+    ),
     preview: bool = typer.Option(
         False, "--preview", help="Preview files to be processed without actually processing them"
     ),
 ):
     """
-    Generate content from text using local LLM inference.
+    Generate content from parsed documents using local LLM inference.
     
     Can process:
-    - Single file: synthetic-data-kit create document.txt --type qa
-    - Directory: synthetic-data-kit create ./processed-text/ --type qa
+    - Single file: synthetic-data-kit create document.lance --type qa
+    - Directory: synthetic-data-kit create ./parsed/ --type qa
     
     Content types:
-    - qa: Generate question-answer pairs from .txt files (use --num-pairs to specify how many)
-    - summary: Generate summaries from .txt files
-    - cot: Generate Chain of Thought reasoning examples from .txt files (use --num-pairs to specify how many)
+    - qa: Generate question-answer pairs from .lance files (use --num-pairs to specify how many)
+    - summary: Generate summaries from .lance files
+    - cot: Generate Chain of Thought reasoning examples from .lance files (use --num-pairs to specify how many)
     - cot-enhance: Enhance existing conversations with Chain of Thought reasoning from .json files
       (use --num-pairs to limit the number of conversations to enhance, default is to enhance all)
       (for cot-enhance, the input must be a JSON file with either:
        - A single conversation in 'conversations' field
        - An array of conversation objects, each with a 'conversations' field
        - A direct array of conversation messages)
+    
+    Legacy .txt files are also supported for backward compatibility.
     """
     import os
     from synthetic_data_kit.core.create import process_file
@@ -344,8 +353,10 @@ def create(
         output_dir = get_path_config(ctx.config, "output", "generated")
     
     try:
-        # Check if input is a directory
-        if is_directory(input):
+        # Special handling for Lance datasets - they are directories but should be treated as single files
+        is_lance_dataset = input.endswith('.lance') and is_directory(input)
+        # Check if input is a directory (but not a Lance dataset)
+        if is_directory(input) and not is_lance_dataset:
             # Preview mode - show files without processing
             if preview:
                 # For cot-enhance, look for .json files, otherwise .txt files
@@ -379,7 +390,7 @@ def create(
                     if content_type == "cot-enhance":
                         console.print(f"   Looking for: .json files", style="yellow")
                     else:
-                        console.print(f"   Looking for: .txt files", style="yellow")
+                        console.print(f"   Looking for: .lance files (legacy .txt files also supported)", style="yellow")
                 
                 return 0
             
@@ -422,7 +433,8 @@ def create(
                     verbose,
                     provider=provider,
                     chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap
+                    chunk_overlap=chunk_overlap,
+                    multimodal=multimodal
                 )
             if output_path:
                 console.print(f"✅ Content saved to [bold]{output_path}[/bold]", style="green")
@@ -595,7 +607,7 @@ def save_as(
         None, "--format", "-f", help="Output format [jsonl|alpaca|ft|chatml]"
     ),
     storage: str = typer.Option(
-        "json", "--storage", help="Storage format [json|hf]",
+        "lance", "--storage", help="Storage format [lance|json|hf]",
         show_default=True
     ),
     output: Optional[Path] = typer.Option(
@@ -616,7 +628,10 @@ def save_as(
     - Directory: synthetic-data-kit save-as ./curated/ --format alpaca
     
     The --format option controls the content format (how the data is structured).
-    The --storage option controls how the data is stored (JSON file or HF dataset).
+    The --storage option controls how the data is stored (Lance dataset, JSON file, or HF dataset).
+    
+    When using --storage lance (default), the output will be a Lance dataset which provides
+    efficient columnar storage and fast access patterns.
     
     When using --storage hf, the output will be a directory containing a Hugging Face 
     dataset in Arrow format, which is optimized for machine learning workflows.
@@ -702,6 +717,9 @@ def save_as(
                 if storage == "hf":
                     # For HF datasets, use a directory name
                     output = os.path.join(final_dir, f"{base_name}_{format}_hf")
+                elif storage == "lance":
+                    # For Lance datasets, use .lance extension
+                    output = os.path.join(final_dir, f"{base_name}_{format}.lance")
                 else:
                     # For JSON files, use appropriate extension
                     if format == "jsonl":
@@ -720,6 +738,8 @@ def save_as(
             
             if storage == "hf":
                 console.print(f"✅ Converted to {format} format and saved as HF dataset to [bold]{output_path}[/bold]", style="green")
+            elif storage == "lance":
+                console.print(f"✅ Converted to {format} format and saved as Lance dataset to [bold]{output_path}[/bold]", style="green")
             else:
                 console.print(f"✅ Converted to {format} format and saved to [bold]{output_path}[/bold]", style="green")
             return 0

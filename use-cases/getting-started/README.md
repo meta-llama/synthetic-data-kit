@@ -62,14 +62,14 @@ You should see a success message if the server is running.
 ```bash
 synthetic-data-kit ingest example_document.pdf
 ```
-This saves the extracted text to `data/parsed/example_document.txt`.
+This saves the extracted text to `data/parsed/example_document.lance`.
 
 #### Directory Processing (New):
 ```bash
 # Place all your documents in data/input/
 synthetic-data-kit ingest ./data/input/
 ```
-This processes all supported files (.pdf, .html, .docx, .pptx, .txt) and saves parsed text to `data/parsed/`.
+This processes all supported files (.pdf, .html, .docx, .pptx, .txt) and saves parsed text to `data/parsed/` as Lance datasets.
 
 #### Preview Before Processing:
 ```bash
