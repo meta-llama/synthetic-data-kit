@@ -104,6 +104,7 @@ def get_openai_config(config: Dict[str, Any]) -> Dict[str, Any]:
         'api_base': None,  # None means use default API base URL
         'api_key': None,  # None means use environment variables
         'model': 'gpt-4o',
+        'azure_api_version': None,
         'max_retries': 3,
         'retry_delay': 1.0
     })
