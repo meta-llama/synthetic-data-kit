@@ -87,6 +87,15 @@ def system_check(
             console.print(f"API key source: {'Environment variable' if api_endpoint_key else 'Config file'}")
         
         model = api_endpoint_config.get("model")
+
+        # Check for azure api version in environment variables
+        azure_api_version_key = os.environ.get('AZURE_API_VERSION')
+        console.print(f"AZURE_API_VERSION_KEY environment variable: {'Found' if azure_api_version_key else 'Not found'}")
+
+        # Set API VERSION key with priority: env var > config
+        azure_api_version = azure_api_version_key or api_endpoint_config.get("azure_api_version")
+        if azure_api_version:
+            console.print(f"API version source: {'Environment variable' if azure_api_version_key else 'Config file'}")
         
         # Check API endpoint access
         with console.status(f"Checking API endpoint access..."):
@@ -94,6 +103,7 @@ def system_check(
                 # Try to import OpenAI
                 try:
                     from openai import OpenAI
+                    from openai import AzureOpenAI
                 except ImportError:
                     console.print("L API endpoint package not installed", style="red")
                     console.print("Install with: pip install openai>=1.0.0", style="yellow")
@@ -105,13 +115,26 @@ def system_check(
                     client_kwargs['api_key'] = api_key
                 if api_base:
                     client_kwargs['base_url'] = api_base
+                if azure_api_version:
+                    client_kwargs['api_version'] = azure_api_version
                 
                 # Check API access
                 try:
-                    client = OpenAI(**client_kwargs)
-                    # Try a simple models list request to check connectivity
-                    models = client.models.list()
-                    console.print(f" API endpoint access confirmed", style="green")
+                    if azure_api_version:
+                        client = AzureOpenAI(**client_kwargs)
+                        resp = client.chat.completions.create(
+                            model=model,
+                            messages=[{"role":"user", "content":"Hello World!"}],
+                            max_tokens=1
+                        )
+                        console.print("API endpoint access confirmed.. API Responded with: ",
+                                      resp.choices[0].message.content, style="green")
+                    else:
+                        client = OpenAI(**client_kwargs)
+                        # Try a simple models list request to check connectivity
+                        models = client.models.list()
+                        console.print(f" API endpoint access confirmed", style="green")
+
                     if api_base:
                         console.print(f"Using custom API base: {api_base}", style="green")
                     console.print(f"Default model: {model}", style="green")
@@ -120,8 +143,10 @@ def system_check(
                     console.print(f"L Error connecting to API endpoint: {str(e)}", style="red")
                     if api_base:
                         console.print(f"Using custom API base: {api_base}", style="yellow")
-                    if not api_key and not api_base:
+                    if not api_key and api_base:
                         console.print("API key is required. Set in config.yaml or as API_ENDPOINT_KEY env var", style="yellow")
+                    if not azure_api_version and api_base:
+                        console.print("Azure API version is required. Set in config.yaml or as AZURE_API_VERSION env var", style="yellow")
                     return 1
             except Exception as e:
                 console.print(f"L Error: {str(e)}", style="red")
