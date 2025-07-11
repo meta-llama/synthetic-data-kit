@@ -32,6 +32,8 @@ api-endpoint:
   model: "Llama-4-Maverick-17B-128E-Instruct-FP8" # Default model to use
   max_retries: 3                       # Number of retries for API calls
   retry_delay: 1.0                     # Initial delay between retries (seconds)
+  type: "openai"                       # The inference provider "openai" or "together"
+  sleep_time: 120                      # Small delay in seconds between batches to avoid rate limits
 
 # Ingest configuration
 ingest:
