@@ -39,11 +39,15 @@ def test_parse_qa_pairs_invalid_json():
 
 
 @pytest.mark.unit
-def test_llm_client_error_handling(patch_config, test_env):
+def test_llm_client_error_handling(patch_llm_client_config, test_env):
     """Test error handling in LLM client."""
     with patch("synthetic_data_kit.models.llm_client.OpenAI") as mock_openai:
         # Setup mock to raise an exception
         mock_openai.side_effect = Exception("API Error")
+
+        # Get the mock config from the fixture
+        config = patch_llm_client_config.return_value
+        config["api-endpoint"]["azure_api_version"] = None
 
         # Should handle the exception gracefully
         with pytest.raises(Exception) as excinfo:
