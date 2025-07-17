@@ -321,10 +321,12 @@ vllm:
   model: "meta-llama/Llama-3.3-70B-Instruct"
   max_retries: 3
   retry_delay: 1.0
+  sleep_time: 0.1   # Small delay in seconds between batches to avoid rate limits
 
 generation:
   temperature: 0.5   # Lower temperature for more deterministic outputs
   top_p: 0.95
+  max_context_length: 8000  # Context Length of the MODEL. Useful while Generating Summary
   
   # Document processing strategy
   processing_strategy: "auto"     # "auto", "single", or "chunking"

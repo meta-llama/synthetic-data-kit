@@ -122,22 +122,25 @@ def system_check(
                 try:
                     if azure_api_version:
                         client = AzureOpenAI(**client_kwargs)
-                        resp = client.chat.completions.create(
-                            model=model,
-                            messages=[{"role":"user", "content":"Hello World!"}],
-                            max_tokens=1
-                        )
-                        console.print("API endpoint access confirmed.. API Responded with: ",
-                                      resp.choices[0].message.content, style="green")
                     else:
                         client = OpenAI(**client_kwargs)
-                        # Try a simple models list request to check connectivity
-                        models = client.models.list()
-                        console.print(f" API endpoint access confirmed", style="green")
+
+                    # Try a simple models request to check connectivity
+                    messages = [
+                        {"role": "user", "content": "Hello"}
+                    ]
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=messages, 
+                        temperature=0.1
+                    )
+                    console.print("API endpoint access confirmed.. API Responded with: ",
+                                      resp.choices[0].message.content, style="green")
 
                     if api_base:
                         console.print(f"Using custom API base: {api_base}", style="green")
                     console.print(f"Default model: {model}", style="green")
+                    console.print(f"Response from model: {response.choices[0].message.content}", style="green")
                     return 0
                 except Exception as e:
                     console.print(f"L Error connecting to API endpoint: {str(e)}", style="red")

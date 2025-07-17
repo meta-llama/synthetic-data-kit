@@ -162,11 +162,13 @@ llm:
 vllm:
   api_base: "http://localhost:8000/v1"
   model: "meta-llama/Llama-3.3-70B-Instruct"
+  sleep_time: 0.1
 
 generation:
   temperature: 0.7
   chunk_size: 4000
   num_pairs: 25
+  max_context_length: 8000
 
 curate:
   threshold: 7.0
@@ -184,6 +186,7 @@ api-endpoint:
   api_base: "https://api.llama.com/v1"
   api_key: "llama-api-key"
   model: "Llama-4-Maverick-17B-128E-Instruct-FP8"
+  sleep_time: 0.5
 ```
 
 ### Customizing Configuration

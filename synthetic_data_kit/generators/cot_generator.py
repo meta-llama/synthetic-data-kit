@@ -281,9 +281,10 @@ class COTGenerator:
             os.environ['SDK_VERBOSE'] = 'false'
         
         # Generate summary first (helpful context)
+        max_context_length = self.generation_config.get("max_context_length", 8000)
         summary = self.client.chat_completion(
             [{"role": "system", "content": "Summarize this document in 2-3 sentences."},
-             {"role": "user", "content": document_text}], 
+             {"role": "user", "content": document_text[0:max_context_length]}], 
             temperature=0.1
         )
         

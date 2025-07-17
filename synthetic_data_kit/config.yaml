@@ -89,7 +89,7 @@ prompts:
   
   # QA pair generation prompt
   qa_generation: |
-    Create {num_pairs} question-answer pairs from this text for LLM training.
+    Create question-answer pairs from this text for LLM training.
     
     Rules:
     1. Questions must be about important facts in the text
@@ -138,7 +138,7 @@ prompts:
     
   # Chain of Thought generation prompt
   cot_generation: |
-    Create {num_examples} complex reasoning examples from this text that demonstrate chain-of-thought thinking.
+    Create complex reasoning examples from this text that demonstrate chain-of-thought thinking.
     
     Each example should have:
     1. A challenging question that requires step-by-step reasoning

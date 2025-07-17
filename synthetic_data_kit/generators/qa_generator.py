@@ -39,10 +39,10 @@ class QAGenerator:
         
         # Get summary prompt from config
         prompt = get_prompt(self.config, "summary")
-        
+        max_context_length = self.generation_config.get("max_context_length", 8000)
         messages = [
             {"role": "system", "content": prompt},
-            {"role": "user", "content": document_text}
+            {"role": "user", "content": document_text[0:max_context_length]}
         ]
         
         summary = self.client.chat_completion(

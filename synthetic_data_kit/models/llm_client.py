@@ -90,6 +90,7 @@ class LLMClient:
             self.model = model_name or api_endpoint_config.get('model')
             self.max_retries = max_retries or api_endpoint_config.get('max_retries')
             self.retry_delay = retry_delay or api_endpoint_config.get('retry_delay')
+            self.sleep_time = api_endpoint_config.get('sleep_time',0.5)
             
             # Initialize OpenAI client
             self._init_openai_client()
@@ -102,6 +103,7 @@ class LLMClient:
             self.model = model_name or vllm_config.get('model')
             self.max_retries = max_retries or vllm_config.get('max_retries')
             self.retry_delay = retry_delay or vllm_config.get('retry_delay')
+            self.sleep_time = vllm_config.get('sleep_time',0.1)
             
             # No client to initialize for vLLM as we use requests directly
             # Verify server is running
@@ -554,7 +556,7 @@ class LLMClient:
             
             # Small delay between batches to avoid rate limits
             if i + batch_size < len(message_batches):
-                time.sleep(0.5)
+                time.sleep(self.sleep_time)
         
         return results
     
@@ -614,7 +616,7 @@ class LLMClient:
             
             # Small delay between batches
             if i + batch_size < len(message_batches):
-                time.sleep(0.1)
+                time.sleep(self.sleep_time)
         
         return results
     
