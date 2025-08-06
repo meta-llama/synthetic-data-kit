@@ -32,7 +32,7 @@ def test_system_check_command_vllm(patch_config):
 
 
 @pytest.mark.functional
-def test_system_check_command_api_endpoint(patch_config, test_env):
+def test_system_check_command_api_endpoint(patch_cli_config, test_env):
     """Test the system-check command with API endpoint provider."""
     runner = CliRunner()
 
@@ -42,12 +42,30 @@ def test_system_check_command_api_endpoint(patch_config, test_env):
         mock_client.models.list.return_value = ["mock-model"]
         mock_openai.return_value = mock_client
 
+        # Get the mock config from the fixture
+        config = patch_cli_config.return_value
+        config["api-endpoint"]["azure_api_version"] = None
+        
         result = runner.invoke(app, ["system-check", "--provider", "api-endpoint"])
-
-        # Just check exit code, not specific message since it varies
         assert result.exit_code == 0
         mock_openai.assert_called_once()
 
+@pytest.mark.functional
+def test_system_check_command_azure_api_endpoint(patch_cli_config, test_env):
+    """Test the system-check command with API endpoint provider."""
+    runner = CliRunner()
+
+    # Mock Azure OpenAI client
+    with patch("openai.AzureOpenAI") as mock_azure_openai:
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = MagicMock(
+            choices=[MagicMock(message=MagicMock(content="Hello World!"))]
+        )
+        mock_azure_openai.return_value = mock_client
+        
+        result = runner.invoke(app, ["system-check", "--provider", "api-endpoint"])
+        assert result.exit_code == 0
+        mock_azure_openai.assert_called_once()
 
 @pytest.mark.functional
 def test_ingest_command(patch_config):
