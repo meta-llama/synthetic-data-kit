@@ -25,6 +25,7 @@ vllm:
   max_retries: 3                       # Number of retries for API calls
   retry_delay: 1.0                     # Initial delay between retries (seconds)
   sleep_time: 0.1                      # Small delay in seconds between batches to avoid rate limits
+  http_request_timeout: 180            # Http Request timeout in seconds (3 minutes)
   
 # API endpoint configuration
 api-endpoint:
