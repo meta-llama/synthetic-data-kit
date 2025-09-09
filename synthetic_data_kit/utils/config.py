@@ -79,13 +79,11 @@ def get_llm_provider(config: Dict[str, Any]) -> str:
     """Get the selected LLM provider
     
     Returns:
-        String with provider name: 'vllm' or 'api-endpoint'
+        String with provider name: 'vllm', 'api-endpoint', 'openai', or 'ollama'
     """
     llm_config = config.get('llm', {})
     provider = llm_config.get('provider', 'vllm')
     print(f"get_llm_provider returning: {provider}")
-    if provider != 'api-endpoint' and 'llm' in config and 'provider' in config['llm'] and config['llm']['provider'] == 'api-endpoint':
-        print(f"WARNING: Config has 'api-endpoint' but returning '{provider}'")
     return provider
 
 def get_vllm_config(config: Dict[str, Any]) -> Dict[str, Any]:
@@ -106,6 +104,27 @@ def get_openai_config(config: Dict[str, Any]) -> Dict[str, Any]:
         'model': 'gpt-4o',
         'max_retries': 3,
         'retry_delay': 1.0
+    })
+
+def get_openai_direct_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get OpenAI direct configuration"""
+    return config.get('openai', {
+        'api_base': 'https://api.openai.com/v1',
+        'api_key': None,  # None means use OPENAI_API_KEY environment variable
+        'model': 'gpt-4o',
+        'max_retries': 3,
+        'retry_delay': 1.0,
+        'sleep_time': 0.5
+    })
+
+def get_ollama_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get Ollama configuration"""
+    return config.get('ollama', {
+        'api_base': 'http://localhost:11434',
+        'model': 'llama3.2:3b',
+        'max_retries': 3,
+        'retry_delay': 1.0,
+        'sleep_time': 0.1
     })
 
 def get_generation_config(config: Dict[str, Any]) -> Dict[str, Any]:

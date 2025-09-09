@@ -14,7 +14,7 @@ paths:
 
 # LLM Provider configuration
 llm:
-  # Provider selection: "vllm" or "api-endpoint"
+  # Provider selection: "vllm", "api-endpoint", "openai", "ollama"
   provider: "api-endpoint"
 
 # VLLM server configuration
@@ -24,14 +24,33 @@ vllm:
   model: "meta-llama/Llama-3.3-70B-Instruct" # Default model to use
   max_retries: 3                       # Number of retries for API calls
   retry_delay: 1.0                     # Initial delay between retries (seconds)
+  sleep_time: 0.1                      # Small delay in seconds between batches to avoid rate limits
   
-# API endpoint configuration
+# API endpoint configuration (for OpenAI-compatible APIs)
 api-endpoint:
   api_base: "https://api.llama.com/v1" # Optional base URL for API endpoint (null for default API)
-  api_key: "llama-api-key"               # API key for API endpoint or compatible service (can use env var instead)
+  api_key: "llama_api_key"               # API key for API endpoint or compatible service (can use env var instead)
   model: "Llama-4-Maverick-17B-128E-Instruct-FP8" # Default model to use
   max_retries: 3                       # Number of retries for API calls
   retry_delay: 1.0                     # Initial delay between retries (seconds)
+  sleep_time: 0.5                      # Small delay in seconds between batches to avoid rate limits
+
+# OpenAI configuration
+openai:
+  api_key: "sk-your-openai-api-key"    # OpenAI API key (can use OPENAI_API_KEY env var)
+  model: "gpt-4o"                      # Default model to use
+  api_base: "https://api.openai.com/v1" # OpenAI API base URL
+  max_retries: 3                       # Number of retries for API calls
+  retry_delay: 1.0                     # Initial delay between retries (seconds)
+  sleep_time: 0.5                      # Small delay in seconds between batches to avoid rate limits
+
+# Ollama configuration
+ollama:
+  api_base: "http://localhost:11434"   # Base URL for Ollama API
+  model: "llama3.2:3b"                 # Default model to use
+  max_retries: 3                       # Number of retries for API calls
+  retry_delay: 1.0                     # Initial delay between retries (seconds)
+  sleep_time: 0.1                      # Small delay in seconds between batches to avoid rate limits
 
 # Ingest configuration
 ingest:
@@ -42,31 +61,16 @@ ingest:
 generation:
   temperature: 0.7   # Higher = more creative, lower = more deterministic
   top_p: 0.95        # Nucleus sampling parameter
-  
-  # Document processing strategy
-  # "auto": choose based on document size, "single": force single call, "chunking": force chunking
-  processing_strategy: "auto"
-  single_call_max_size: 8000  # Documents smaller than this use single call processing
-  
-  # Chunking parameters (used for large documents)
-  chunk_size: 4000   # Size of text chunks for processing large documents
-  overlap: 200       # Overlap between chunks to maintain context (prevents losing info at boundaries)
-  
-  # Model parameters
+  chunk_size: 4000   # Size of text chunks for processing
+  overlap: 200       # Overlap between chunks to maintain context
   max_tokens: 4096   # Maximum tokens in LLM responses
-  
-  # Content generation targets
   num_pairs: 25      # Default number of QA pairs to generate
   num_cot_examples: 5  # Default number of Chain of Thought examples to generate
   num_cot_enhance_examples: null  # Maximum number of conversations to enhance (null = enhance all)
-  
-  # Batch processing
   batch_size: 32     # Number of requests to batch together (for create)
+  max_context_length: 8000       # Context Length of the MODEL. Useful while Generating Summary
+  summary_overlap: 0       # Overlap between chunks to maintain context. Useful while Generating Summary
   
-  # Quality settings
-  enable_deduplication: true    # Remove very similar questions/examples
-  similarity_threshold: 0.8     # Threshold for considering items similar (0.0-1.0)
-
 # Content curation parameters
 curate:
   threshold: 7.0     # Default quality threshold (1-10)

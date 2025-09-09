@@ -49,26 +49,19 @@ def system_check(
         None, "--api-base", help="API base URL to check"
     ),
     provider: Optional[str] = typer.Option(
-        None, "--provider", help="Provider to check ('vllm' or 'api-endpoint')"
+        None, "--provider", help="Provider to check ('vllm', 'api-endpoint', 'openai', 'ollama')"
     )
 ):
     """
     Check if the selected LLM provider's server is running.
     """
-    # Check for API_ENDPOINT_KEY directly from environment
+    # Check for API keys directly from environment
     console.print("Environment variable check:", style="bold blue")
-    llama_key = os.environ.get('API_ENDPOINT_KEY')
-    console.print(f"API_ENDPOINT_KEY: {'Present' if llama_key else 'Not found'}")
-    # Debugging sanity test:
-    # if llama_key:
-        # console.print(f"  Value starts with: {llama_key[:10]}...")
+    api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')
+    openai_key = os.environ.get('OPENAI_API_KEY')
+    console.print(f"API_ENDPOINT_KEY: {'Present' if api_endpoint_key else 'Not found'}")
+    console.print(f"OPENAI_API_KEY: {'Present' if openai_key else 'Not found'}")
     
-    # To check the rename bug:
-    #console.print("Available environment variables:", style="bold blue")
-    #env_vars = [key for key in os.environ.keys() if 'API' in key or 'KEY' in key or 'TOKEN' in key]
-    #for var in env_vars:
-    #    console.print(f"  {var}")
-    #console.print("")
     # Get provider from args or config
     selected_provider = provider or get_llm_provider(ctx.config)
     
@@ -78,10 +71,6 @@ def system_check(
         api_base = api_base or api_endpoint_config.get("api_base")
         
         # Check for environment variables
-        api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')
-        console.print(f"API_ENDPOINT_KEY environment variable: {'Found' if api_endpoint_key else 'Not found'}")
-        
-        # Set API key with priority: env var > config
         api_key = api_endpoint_key or api_endpoint_config.get("api_key")
         if api_key:
             console.print(f"API key source: {'Environment variable' if api_endpoint_key else 'Config file'}")
@@ -95,7 +84,7 @@ def system_check(
                 try:
                     from openai import OpenAI
                 except ImportError:
-                    console.print("L API endpoint package not installed", style="red")
+                    console.print(" API endpoint package not installed", style="red")
                     console.print("Install with: pip install openai>=1.0.0", style="yellow")
                     return 1
                 
@@ -125,15 +114,106 @@ def system_check(
                     console.print(f"Response from model: {response.choices[0].message.content}", style="green")
                     return 0
                 except Exception as e:
-                    console.print(f"L Error connecting to API endpoint: {str(e)}", style="red")
+                    console.print(f" Error connecting to API endpoint: {str(e)}", style="red")
                     if api_base:
                         console.print(f"Using custom API base: {api_base}", style="yellow")
                     if not api_key and not api_base:
                         console.print("API key is required. Set in config.yaml or as API_ENDPOINT_KEY env var", style="yellow")
                     return 1
             except Exception as e:
-                console.print(f"L Error: {str(e)}", style="red")
+                console.print(f" Error: {str(e)}", style="red")
                 return 1
+                
+    elif selected_provider == "openai":
+        # Get OpenAI config
+        from synthetic_data_kit.utils.config import get_openai_direct_config
+        openai_config = get_openai_direct_config(ctx.config)
+        api_base = api_base or openai_config.get("api_base")
+        
+        # Check for environment variables
+        api_key = openai_key or openai_config.get("api_key")
+        if api_key:
+            console.print(f"API key source: {'Environment variable' if openai_key else 'Config file'}")
+        
+        model = openai_config.get("model")
+        
+        # Check OpenAI access
+        with console.status(f"Checking OpenAI access..."):
+            try:
+                # Try to import OpenAI
+                try:
+                    from openai import OpenAI
+                except ImportError:
+                    console.print(" OpenAI package not installed", style="red")
+                    console.print("Install with: pip install openai>=1.0.0", style="yellow")
+                    return 1
+                
+                # Create client
+                client_kwargs = {}
+                if api_key:
+                    client_kwargs['api_key'] = api_key
+                if api_base:
+                    client_kwargs['base_url'] = api_base
+                
+                # Check API access
+                try:
+                    client = OpenAI(**client_kwargs)
+                    # Try a simple models request to check connectivity
+                    messages = [
+                        {"role": "user", "content": "Hello"}
+                    ]
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=messages, 
+                        temperature=0.1
+                    )
+                    console.print(f" OpenAI access confirmed", style="green")
+                    console.print(f"Using API base: {api_base}", style="green")
+                    console.print(f"Default model: {model}", style="green")
+                    console.print(f"Response from model: {response.choices[0].message.content}", style="green")
+                    return 0
+                except Exception as e:
+                    console.print(f" Error connecting to OpenAI: {str(e)}", style="red")
+                    if not api_key:
+                        console.print("API key is required. Set in config.yaml or as OPENAI_API_KEY env var", style="yellow")
+                    return 1
+            except Exception as e:
+                console.print(f" Error: {str(e)}", style="red")
+                return 1
+                
+    elif selected_provider == "ollama":
+        # Get Ollama config
+        from synthetic_data_kit.utils.config import get_ollama_config
+        ollama_config = get_ollama_config(ctx.config)
+        api_base = api_base or ollama_config.get("api_base")
+        model = ollama_config.get("model")
+        
+        with console.status(f"Checking Ollama server at {api_base}..."):
+            try:
+                response = requests.get(f"{api_base}/api/tags", timeout=2)
+                if response.status_code == 200:
+                    models_data = response.json()
+                    available_models = [m.get('name', '') for m in models_data.get('models', [])]
+                    console.print(f" Ollama server is running at {api_base}", style="green")
+                    console.print(f"Available models: {available_models}", style="green")
+                    if model in available_models:
+                        console.print(f"Default model '{model}' is available", style="green")
+                    else:
+                        console.print(f"Warning: Default model '{model}' not found in available models", style="yellow")
+                    return 0
+                else:
+                    console.print(f" Ollama server is not available at {api_base}", style="red")
+                    console.print(f"Error: Server returned status code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                console.print(f" Ollama server is not available at {api_base}", style="red")
+                console.print(f"Error: {str(e)}")
+                
+            # Show instruction to start the server
+            console.print("\nTo start Ollama server, run:", style="yellow")
+            console.print(f"ollama serve", style="bold blue")
+            console.print(f"Then pull the model: ollama pull {model}", style="bold blue")
+            return 1
+            
     else:
         # Default to vLLM
         # Get vLLM server details
@@ -150,10 +230,10 @@ def system_check(
                     console.print(f"Available models: {response.json()}")
                     return 0
                 else:
-                    console.print(f"L vLLM server is not available at {api_base}", style="red")
+                    console.print(f" vLLM server is not available at {api_base}", style="red")
                     console.print(f"Error: Server returned status code: {response.status_code}")
             except requests.exceptions.RequestException as e:
-                console.print(f"L vLLM server is not available at {api_base}", style="red")
+                console.print(f" vLLM server is not available at {api_base}", style="red")
                 console.print(f"Error: {str(e)}")
                 
             # Show instruction to start the server

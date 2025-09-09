@@ -4,7 +4,55 @@ Tool for generating high-quality synthetic datasets to fine-tune LLMs.
 
 Generate Reasoning Traces, QA Pairs, save them to a fine-tuning format with a simple CLI.
 
-> [Checkout our guide on using the tool to unlock task-specific reasoning in Llama-3 family](https://github.com/meta-llama/synthetic-data-kit/tree/main/use-cases/adding_reasoning_to_llama_3)
+> [Checkout our guide on u## Examples
+
+### Processing with Ollama (Local LLM)
+
+```bash
+# Check Ollama server
+synthetic-data-kit system-check --provider ollama
+
+# Process documents with Ollama
+synthetic-data-kit ingest research_paper.pdf
+synthetic-data-kit create data/parsed/research_paper.txt --provider ollama --model llama3.2:3b --type qa
+synthetic-data-kit curate data/generated/research_paper_qa_pairs.json --provider ollama
+synthetic-data-kit save-as data/curated/research_paper_cleaned.json --format alpaca
+```
+
+### Processing with OpenAI
+
+```bash
+# Set your OpenAI API key
+export OPENAI_API_KEY="your-api-key-here"
+
+# Check OpenAI connection
+synthetic-data-kit system-check --provider openai
+
+# Process documents with OpenAI
+synthetic-data-kit ingest research_paper.pdf
+synthetic-data-kit create data/parsed/research_paper.txt --provider openai --model gpt-4o --type qa
+synthetic-data-kit curate data/generated/research_paper_qa_pairs.json --provider openai
+synthetic-data-kit save-as data/curated/research_paper_cleaned.json --format alpaca
+```
+
+### Processing a Single PDF Document
+
+```bash
+# Ingest PDF
+synthetic-data-kit ingest research_paper.pdf
+
+# Generate QA pairs (default)
+synthetic-data-kit create data/parsed/research_paper.txt -n 30
+
+# Curate data
+synthetic-data-kit curate data/generated/research_paper_qa_pairs.json -t 8.5
+
+# Save in OpenAI fine-tuning format (JSON)
+synthetic-data-kit save-as data/curated/research_paper_cleaned.json -f ft
+
+# Save in OpenAI fine-tuning format (HF dataset)
+synthetic-data-kit save-as data/curated/research_paper_cleaned.json -f ft --storage hf
+```ock task-specific reasoning in Llama-3 family](https://github.com/meta-llama/synthetic-data-kit/tree/main/use-cases/adding_reasoning_to_llama_3)
 
 # What does Synthetic Data Kit offer? 
 
@@ -16,7 +64,7 @@ Multiple tools support standardized formats. However, most of the times your dat
 
 This toolkit simplifies the journey of:
 
-- Using a LLM (vLLM or any local/external API endpoint) to generate examples
+- Using a LLM (Ollama, OpenAI, or API endpoints) to generate examples
 - Modular 4 command flow
 - Converting your existing files to fine-tuning friendly formats
 - Creating synthetic datasets
@@ -80,21 +128,45 @@ mkdir -p data/{pdf,html,youtube,docx,ppt,txt,output,generated,cleaned,final}
 vllm serve meta-llama/Llama-3.3-70B-Instruct --port 8000
 ```
 
+Or if using Ollama (recommended for local inference):
+
+```bash
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull a model
+ollama pull llama3.2:3b
+
+# Start Ollama server (runs automatically)
+```
+
+Or if using OpenAI:
+
+```bash
+# Set your API key
+export OPENAI_API_KEY="your-api-key-here"
+```
+
 ### 2. Usage
 
 The flow follows 4 simple steps: `ingest`, `create`, `curate`, `save-as`. You can process individual files or entire directories. All data is now stored in Lance format by default.
 
 ```bash
 # Check if your backend is running
-synthetic-data-kit system-check
+synthetic-data-kit system-check --provider ollama
+# or
+synthetic-data-kit system-check --provider openai
 
 # SINGLE FILE PROCESSING (Original approach)
 # Parse a document to a Lance dataset
 synthetic-data-kit ingest docs/report.pdf
 # This saves file to data/parsed/report.lance
 
-# Generate QA pairs (default)
-synthetic-data-kit create data/parsed/report.lance --type qa
+# Generate QA pairs with Ollama
+synthetic-data-kit create data/parsed/report.lance --provider ollama --model llama3.2:3b --type qa
+
+# Generate QA pairs with OpenAI
+synthetic-data-kit create data/parsed/report.lance --provider openai --model gpt-4o --type qa
 
 OR 
 
@@ -155,13 +227,13 @@ The toolkit uses a YAML configuration file (default: `configs/config.yaml`).
 Note, this can be overridden via either CLI arguments OR passing a custom YAML file
 
 ```yaml
-# Example configuration using vLLM
+# Example configuration using Ollama (Local LLM)
 llm:
-  provider: "vllm"
+  provider: "ollama"
 
-vllm:
-  api_base: "http://localhost:8000/v1"
-  model: "meta-llama/Llama-3.3-70B-Instruct"
+ollama:
+  api_base: "http://localhost:11434"
+  model: "llama3.2:3b"
   sleep_time: 0.1
 
 generation:
@@ -175,10 +247,22 @@ curate:
   batch_size: 8
 ```
 
-or using an API endpoint:
+```yaml
+# Example configuration using OpenAI
+llm:
+  provider: "openai"
+
+openai:
+  api_base: "https://api.openai.com/v1"
+  api_key: "sk-your-openai-api-key"
+  model: "gpt-4o"
+  sleep_time: 0.5
+```
+
+or using an API endpoint (compatible with OpenAI-style APIs):
 
 ```yaml
-# Example configuration using the llama API
+# Example configuration using API endpoint
 llm:
   provider: "api-endpoint"
 
@@ -428,6 +512,10 @@ graph LR
     Ingest --> HTMLFile[HTML File]
     Ingest --> YouTubeURL[File Format]
 
+    Create --> Ollama[Ollama]
+    Create --> OpenAI[OpenAI]
+    Create --> APIEndpoint[API Endpoint]
+    Create --> VLLM[VLLM]
     
     Create --> CoT[CoT]
     Create --> QA[QA Pairs]
@@ -443,16 +531,29 @@ graph LR
 
 ## Troubleshooting FAQs:
 
+### Ollama Issues
+
+- Ensure Ollama is installed: `curl -fsSL https://ollama.ai/install.sh | sh`
+- Pull models: `ollama pull llama3.2:3b`
+- Check server: `ollama list`
+- Verify API: `curl http://localhost:11434/api/tags`
+
+### OpenAI Issues
+
+- Set API key: `export OPENAI_API_KEY="your-key"`
+- Check key validity: `synthetic-data-kit system-check --provider openai`
+- Monitor usage at https://platform.openai.com/usage
+
 ### vLLM Server Issues
 
 - Ensure vLLM is installed: `pip install vllm`
 - Start server with: `vllm serve <model_name> --port 8000`
-- Check connection: `synthetic-data-kit system-check`
+- Check connection: `synthetic-data-kit system-check --provider vllm`
 
 ### Memory Issues
 
 If you encounter CUDA out of memory errors:
-- Use a smaller model
+- Use a smaller model (e.g., llama3.2:3b instead of larger models)
 - Reduce batch size in config
 - Start vLLM with `--gpu-memory-utilization 0.85`
 
@@ -473,10 +574,29 @@ If you encounter issues with the `curate` command:
   - DOCX: `pip install python-docx`
   - PPTX: `pip install python-pptx`
 
-## License
+## Testing and Demos
 
-Read more about the [License](./LICENSE)
+The toolkit includes comprehensive tests and demo scripts for the new providers:
 
-## Contributing
+### Running Provider Tests
 
-Contributions are welcome! [Read our contributing guide](./CONTRIBUTING.md)
+```bash
+# Run standalone tests for Ollama and OpenAI providers
+python tests/unit/test_standalone.py
+
+# Run comprehensive provider tests
+python tests/unit/test_providers.py
+```
+
+### Demo Scripts
+
+```bash
+# Run provider demonstration
+python use-cases/demo_providers.py
+```
+
+This demo shows:
+- How to initialize Ollama and OpenAI clients
+- Example API calls and configurations
+- Pipeline integration examples
+- Configuration setup instructions

@@ -14,7 +14,7 @@ paths:
 
 # LLM Provider configuration
 llm:
-  # Provider selection: "vllm" or "api-endpoint"
+  # Provider selection: "vllm", "api-endpoint", "openai", "ollama"
   provider: "api-endpoint"
 
 # VLLM server configuration
@@ -26,7 +26,7 @@ vllm:
   retry_delay: 1.0                     # Initial delay between retries (seconds)
   sleep_time: 0.1                      # Small delay in seconds between batches to avoid rate limits
   
-# API endpoint configuration
+# API endpoint configuration (for OpenAI-compatible APIs)
 api-endpoint:
   api_base: "https://api.llama.com/v1" # Optional base URL for API endpoint (null for default API)
   api_key: "llama_api_key"               # API key for API endpoint or compatible service (can use env var instead)
@@ -34,6 +34,23 @@ api-endpoint:
   max_retries: 3                       # Number of retries for API calls
   retry_delay: 1.0                     # Initial delay between retries (seconds)
   sleep_time: 0.5                      # Small delay in seconds between batches to avoid rate limits
+
+# OpenAI configuration
+openai:
+  api_key: "sk-your-openai-api-key"    # OpenAI API key (can use OPENAI_API_KEY env var)
+  model: "gpt-4o"                      # Default model to use
+  api_base: "https://api.openai.com/v1" # OpenAI API base URL
+  max_retries: 3                       # Number of retries for API calls
+  retry_delay: 1.0                     # Initial delay between retries (seconds)
+  sleep_time: 0.5                      # Small delay in seconds between batches to avoid rate limits
+
+# Ollama configuration
+ollama:
+  api_base: "http://localhost:11434"   # Base URL for Ollama API
+  model: "llama3.2:3b"                 # Default model to use
+  max_retries: 3                       # Number of retries for API calls
+  retry_delay: 1.0                     # Initial delay between retries (seconds)
+  sleep_time: 0.1                      # Small delay in seconds between batches to avoid rate limits
 
 # Ingest configuration
 ingest:
