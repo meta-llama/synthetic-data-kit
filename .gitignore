@@ -39,7 +39,7 @@ outputs/
 .DS_Store
 Thumbs.db
 
-.{new_directory}
+{new_directory}
 
 # Common misspellings / alternate names for generated artifacts
 inferenced/
