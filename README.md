@@ -50,6 +50,7 @@ The toolkit follows a simple CLI structure with 4 main commands:
 - **Multiple Output Formats**: Alpaca, ChatML, JSONL, OpenAI Fine-Tuning
 - **Preview Mode**: See what files will be processed before running
 - **Flexible Configuration**: YAML-based config with CLI overrides
+- **Language Control**: Respond in English (default) or match the input document language
 
 ## Installation
 
@@ -114,6 +115,10 @@ pip install json5
      ```bash
      export OPENAI_API_KEY="your-api-key-here"
      ```
+  Or create a .env file (auto-loaded):
+  ```bash
+  echo 'OPENAI_API_KEY=your-api-key-here' > .env
+  ```
    - **vLLM**:
      ```bash
      pip install vllm
@@ -260,6 +265,11 @@ synthetic-data-kit create document.txt --type qa --provider ollama --model llama
 synthetic-data-kit create document.txt --type qa --provider openai --model gpt-4o
 synthetic-data-kit create document.txt --type qa --provider vllm --model meta-llama/Llama-3.3-70B-Instruct
 synthetic-data-kit create document.txt --type qa --provider api-endpoint --model your-custom-model
+
+# Language control
+# Default is English; use --language source to match the input text language (e.g., Arabic)
+synthetic-data-kit create document.txt --type qa --language source
+synthetic-data-kit create document.txt --type cot --language source
 ```
 
 **Options:**
@@ -267,6 +277,7 @@ synthetic-data-kit create document.txt --type qa --provider api-endpoint --model
 - `--num-pairs`: Number of pairs to generate
 - `--chunk-size`: Text chunk size (default: 4000)
 - `--chunk-overlap`: Overlap between chunks (default: 200)
+- `--language`: Output language: `english` (default) or `source` to match the input text language
 - `--provider`: LLM provider (`ollama`, `openai`, `vllm`, `api-endpoint`)
 - `--model`: Specific model to use (provider-dependent)
 - `--verbose`: Show detailed progress
@@ -368,6 +379,20 @@ synthetic-data-kit -c my_config.yaml ingest document.pdf
 ```
 
 ### Custom Prompt Templates
+### Environment Variables (.env)
+
+The CLI automatically loads environment variables from a `.env` file at the project root if present. This is useful for managing provider credentials without exporting them in your shell.
+
+Examples:
+
+```bash
+# .env
+OPENAI_API_KEY=sk-your-openai-api-key
+API_ENDPOINT_KEY=your-custom-endpoint-key
+```
+
+You can still export variables in your shell; `.env` loading is non-fatal if missing.
+
 
 Override default prompts in your config:
 
@@ -601,6 +626,9 @@ Install required dependencies:
 # Provider tests
 python tests/unit/test_standalone.py
 python tests/unit/test_providers.py
+
+# Functional tests for language option
+pytest tests/functional/test_language_option.py -q
 ```
 
 ### Demo Scripts

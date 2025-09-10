@@ -16,11 +16,21 @@ from synthetic_data_kit.utils.config import get_prompt, get_generation_config
 class COTGenerator:
     """Generates chain-of-thought reasoning examples"""
     
-    def __init__(self, client: LLMClient, config_path: Optional[Path] = None):
+    def __init__(self, client: LLMClient, config_path: Optional[Path] = None, target_language: Optional[str] = "english"):
         """Initialize the CoT Generator with an LLM client and optional config"""
         self.client = client
         self.config = client.config
         self.generation_config = get_generation_config(self.config)
+        self.target_language = (target_language or "english").lower()
+
+    def _language_instruction(self) -> str:
+        if self.target_language == "english":
+            return "Please respond in English."
+        if self.target_language == "arabic":
+            return "Please respond in Arabic."
+        if self.target_language == "source":
+            return "Please respond in the same language as the provided text."
+        return "Please respond in English."
     
     def parse_json_output(self, output_text: str) -> Optional[List[Dict]]:
         """Parse JSON from LLM output text"""
@@ -76,10 +86,11 @@ class COTGenerator:
         prompt_template = get_prompt(self.config, "cot_generation")
         
         # Format the prompt
-        prompt = prompt_template.format(
+        prompt_body = prompt_template.format(
             num_examples=num_examples,
-            text=document_text
+            text=document_text,
         )
+        prompt = f"{prompt_body}\n\n{self._language_instruction()}"
         
         # Generate examples
         temperature = self.generation_config.get("temperature", 0.7)
@@ -142,10 +153,11 @@ class COTGenerator:
         all_messages = []
         for i, chunk in enumerate(chunks):
             # Format the prompt with text
-            cot_prompt = cot_prompt_template.format(
+            cot_prompt_body = cot_prompt_template.format(
                 num_examples=examples_per_chunk,
                 text=chunk
             )
+            cot_prompt = f"{cot_prompt_body}\n\n{self._language_instruction()}"
             
             messages = [
                 {"role": "system", "content": cot_prompt}
@@ -238,10 +250,11 @@ class COTGenerator:
         
         # Format the prompt
         conversation_str = json.dumps(conversations, ensure_ascii=False, indent=2)
-        prompt = prompt_template.format(
+        prompt_body = prompt_template.format(
             conversations=conversation_str,
-            include_simple_steps=str(include_simple_steps).lower()
+            include_simple_steps=str(include_simple_steps).lower(),
         )
+        prompt = f"{prompt_body}\n\n{self._language_instruction()}"
         
         # Generate enhanced conversations
         temperature = self.generation_config.get("temperature", 0.2)
@@ -282,10 +295,11 @@ class COTGenerator:
         
         # Generate summary first (helpful context)
         max_context_length = self.generation_config.get("max_context_length", 8000)
+        summary_prompt = f"Summarize this document in 2-3 sentences.\n\n{self._language_instruction()}"
         summary = self.client.chat_completion(
-            [{"role": "system", "content": "Summarize this document in 2-3 sentences."},
-             {"role": "user", "content": document_text[0:max_context_length]}], 
-            temperature=0.1
+            [{"role": "system", "content": summary_prompt},
+             {"role": "user", "content": document_text[0:max_context_length]}],
+            temperature=0.1,
         )
         
         # Generate CoT examples

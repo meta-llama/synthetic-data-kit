@@ -34,6 +34,7 @@ def process_file(
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
     rolling_summary: Optional[bool] = False,
+    language: str = "english",
 ) -> str:
     """Process a file to generate content
     
@@ -79,8 +80,12 @@ def process_file(
     else:
         documents = parse_file(file_path)
 
+    # Determine target language behavior
+    lang_mode = (language or "english").lower()
+    target_language = "english" if lang_mode != "source" else "source"
+
     if content_type == "qa":
-        generator = QAGenerator(client, config_path)
+        generator = QAGenerator(client, config_path, target_language=target_language)
 
         # Get num_pairs from args or config
         if num_pairs is None:
@@ -111,7 +116,7 @@ def process_file(
         return output_path
     
     elif content_type == "multimodal-qa":
-        generator = MultimodalQAGenerator(client, config_path)
+        generator = MultimodalQAGenerator(client, config_path, target_language=target_language)
         output_path = generator.process_dataset(
             documents=documents,
             output_dir=output_dir,
@@ -132,7 +137,7 @@ def process_file(
         return output_path
 
     elif content_type == "summary":
-        generator = QAGenerator(client, config_path)
+        generator = QAGenerator(client, config_path, target_language=target_language)
 
         full_text = " ".join([doc["text"] for doc in documents])
         
@@ -154,7 +159,7 @@ def process_file(
         from synthetic_data_kit.generators.cot_generator import COTGenerator
         
         # Initialize the CoT generator
-        generator = COTGenerator(client, config_path)
+        generator = COTGenerator(client, config_path, target_language=target_language)
 
         full_text = " ".join([doc["text"] for doc in documents])
         
@@ -192,7 +197,7 @@ def process_file(
         from tqdm import tqdm
         
         # Initialize the CoT generator
-        generator = COTGenerator(client, config_path)
+        generator = COTGenerator(client, config_path, target_language=target_language)
 
         parsed_content = parse_file(file_path)
         document_text = parsed_content[0]["text"] if parsed_content else ""

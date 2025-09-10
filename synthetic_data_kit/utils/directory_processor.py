@@ -223,6 +223,7 @@ def process_directory_create(
     provider: Optional[str] = None,
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
+    language: str = "english",
 ) -> Dict[str, Any]:
     """Process all supported files in directory for content creation
     
@@ -310,7 +311,8 @@ def process_directory_create(
                     verbose,
                     provider=provider,
                     chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap
+                    chunk_overlap=chunk_overlap,
+                    language=language,
                 )
                 
                 # Record success

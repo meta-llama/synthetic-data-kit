@@ -18,29 +18,48 @@ from synthetic_data_kit.utils.llm_processing import parse_qa_pairs, parse_rating
 from synthetic_data_kit.utils.config import load_config, get_generation_config, get_curate_config, get_prompt
 
 class QAGenerator:
-    def __init__(self, 
-                 client: LLMClient,
-                 config_path: Optional[Path] = None):
+    def __init__(
+        self,
+        client: LLMClient,
+        config_path: Optional[Path] = None,
+        target_language: Optional[str] = "english",
+    ):
         """Initialize the QA Generator with an LLM client and optional config"""
         self.client = client
-        
+
         # Load config
         self.config = load_config(config_path)
-        
+
         # Get specific configurations
         self.generation_config = get_generation_config(self.config)
         self.curate_config = get_curate_config(self.config)
+
+        # Language control
+        self.target_language = (target_language or "english").lower()
+
+    def _language_instruction(self) -> str:
+        if self.target_language == "english":
+            return "Please respond in English."
+        if self.target_language == "arabic":
+            return "Please respond in Arabic."
+        if self.target_language == "source":
+            return "Please respond in the same language as the provided text."
+        # Fallback
+        return "Please respond in English."
     
-    def generate_summary(self, 
-                         document_text: str, 
-                         rolling_summary: Optional[bool] = False) -> str:
+    def generate_summary(
+        self,
+        document_text: str,
+        rolling_summary: Optional[bool] = False,
+    ) -> str:
         """Generate a summary of the document"""
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         if verbose:
             print("Generating document summary...")
         
         # Get summary prompt and params from config
-        prompt = get_prompt(self.config, "summary")
+        base_prompt = get_prompt(self.config, "summary")
+        prompt = f"{base_prompt}\n\n{self._language_instruction()}"
         max_context_length = self.generation_config.get("max_context_length", 8000)
         summary_overlap = self.generation_config.get("summary_overlap", 0)
 
@@ -64,28 +83,27 @@ class QAGenerator:
 
             summary = " .".join(summary_per_chunk)
             # Summarize again to reduce overall length and redundancy
-            summary = self.generate_summary(summary,
-                                            rolling_summary=False)
+            summary = self.generate_summary(summary, rolling_summary=False)
         else:
             messages = [
                 {"role": "system", "content": prompt},
-                {"role": "user", "content": document_text[0:max_context_length]}
+                {"role": "user", "content": document_text[0:max_context_length]},
             ]
-            
             summary = self.client.chat_completion(
-                messages, 
-                temperature=0.1  # Use lower temperature for summaries
+                messages,
+                temperature=0.1,  # Use lower temperature for summaries
             )
         
         if verbose:
             print(f"Summary generated ({len(summary)} chars)")
         return summary
     
-    def generate_qa_pairs(self, 
-                        document_text: str, 
-                        summary: str, 
-                        num_pairs: int = 25) -> List[Dict[str, str]]:
-        """Generate QA pairs from the document using batched processing"""
+    def generate_qa_pairs(
+        self,
+        document_text: str,
+        summary: str,
+        num_pairs: int = 25,
+    ) -> List[Dict[str, str]]:
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
         # Get generation config
@@ -122,9 +140,9 @@ class QAGenerator:
                 text=chunk
             )
             
-            messages = [
-                {"role": "system", "content": qa_prompt}
-            ]
+            # Add language instruction to the system prompt
+            lang_instr = self._language_instruction()
+            messages = [{"role": "system", "content": f"{qa_prompt}\n\n{lang_instr}"}]
             all_messages.append(messages)
         
         print(f"Processing {len(chunks)} chunks to generate QA pairs...")
@@ -310,9 +328,9 @@ class QAGenerator:
             "total": len(qa_pairs),
             "filtered": len(rated_pairs),
             "retention_rate": round(len(rated_pairs) / len(qa_pairs), 2) if qa_pairs else 0,
-            "avg_score": round(total_score / len(qa_pairs), 1) if qa_pairs else 0
+            "avg_score": round(total_score / len(qa_pairs), 1) if qa_pairs else 0,
         }
-        
+
         # Always print summary information, even in non-verbose mode
         print(f"Keeping {len(rated_pairs)} out of {len(qa_pairs)} pairs (threshold: {threshold})")
         print(f"Average score: {metrics['avg_score']}")

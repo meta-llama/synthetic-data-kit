@@ -16,10 +16,20 @@ import base64
 
 class MultimodalQAGenerator:
     """Generates Multimodal Question Answering data (text QA from text+image context)"""
-    def __init__(self, client: LLMClient, config_path: Optional[str] = None):
+    def __init__(self, client: LLMClient, config_path: Optional[str] = None, target_language: Optional[str] = "english"):
         self.client = client
         self.config = load_config(str(config_path) if config_path else None) if config_path else client.config
         self.generation_config = get_generation_config(self.config)
+        self.target_language = (target_language or "english").lower()
+
+    def _language_instruction(self) -> str:
+        if self.target_language == "english":
+            return "Please respond in English."
+        if self.target_language == "arabic":
+            return "Please respond in Arabic."
+        if self.target_language == "source":
+            return "Please respond in the same language as the provided text."
+        return "Please respond in English."
 
     def generate_qa_pairs(self, documents, num_pairs=25, verbose=False):
         # Concatenate all text and collect all images (if any)
@@ -49,6 +59,7 @@ class MultimodalQAGenerator:
                 "Return ONLY valid JSON as a list: [{\"question\": \"...\", \"answer\": \"...\"}, ...]. "
                 "Do not include any explanation, markdown, or text outside the JSON."
             )
+            system_prompt = f"{system_prompt}\n\n{self._language_instruction()}"
             messages = [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content}

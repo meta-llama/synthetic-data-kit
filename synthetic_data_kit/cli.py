@@ -6,6 +6,7 @@
 # CLI Logic for synthetic-data-kit
 
 import os
+from dotenv import load_dotenv
 import typer
 from pathlib import Path
 from typing import Optional
@@ -38,6 +39,12 @@ def callback(
     """
     Global options for the Synthetic Data Kit CLI
     """
+    # Load environment variables from .env if present
+    try:
+        load_dotenv(override=False)
+    except Exception:
+        # Non-fatal if dotenv isn't available at runtime
+        pass
     if config:
         ctx.config_path = config
     ctx.config = load_config(ctx.config_path)
@@ -360,6 +367,9 @@ def create(
     content_type: str = typer.Option(
         "qa", "--type", help="Type of content to generate [qa|summary|cot|cot-enhance|multimodal-qa]"
     ),
+    language: str = typer.Option(
+        "english", "--language", help="Output language: 'english' (default) or 'source' to match the input text language"
+    ),
     output_dir: Optional[Path] = typer.Option(
         None, "--output-dir", "-o", help="Where to save the output"
     ),
@@ -526,7 +536,8 @@ def create(
                 verbose=verbose,
                 provider=provider,
                 chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap
+                chunk_overlap=chunk_overlap,
+                language=language,
             )
             
             # Return appropriate exit code
@@ -553,7 +564,8 @@ def create(
                     verbose,
                     provider=provider,
                     chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap
+                    chunk_overlap=chunk_overlap,
+                    language=language,
                 )
             if output_path:
                 console.print(f"✅ Content saved to [bold]{output_path}[/bold]", style="green")
