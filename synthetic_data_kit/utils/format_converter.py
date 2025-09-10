@@ -29,7 +29,7 @@ def to_alpaca(qa_pairs: List[Dict[str, str]], output_path: str) -> str:
         alpaca_data.append(alpaca_item)
     
     with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(alpaca_data, f, indent=2)
+        json.dump(alpaca_data, f, indent=2, ensure_ascii=False)
     
     return output_path
 
@@ -48,7 +48,7 @@ def to_fine_tuning(qa_pairs: List[Dict[str, str]], output_path: str) -> str:
         ft_data.append(ft_item)
     
     with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(ft_data, f, indent=2)
+        json.dump(ft_data, f, indent=2, ensure_ascii=False)
     
     return output_path
 

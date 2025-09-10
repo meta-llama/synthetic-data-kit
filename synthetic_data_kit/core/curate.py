@@ -282,6 +282,6 @@ def curate_qa_pairs(
     
     # Save result
     with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(result, f, indent=2)
+        json.dump(result, f, indent=2, ensure_ascii=False)
     
     return output_path

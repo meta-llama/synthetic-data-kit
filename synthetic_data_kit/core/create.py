@@ -108,7 +108,7 @@ def process_file(
         # Now save the actual result
         try:
             with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(result, f, indent=2)
+                json.dump(result, f, indent=2, ensure_ascii=False)
             print(f"Successfully wrote result to {output_path}")
         except Exception as e:
             print(f"Error writing result file: {e}")
@@ -147,7 +147,7 @@ def process_file(
         # Save output
         output_path = os.path.join(output_dir, f"{base_name}_summary.json")
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump({"summary": summary}, f, indent=2)
+            json.dump({"summary": summary}, f, indent=2, ensure_ascii=False)
         
         return output_path
     
@@ -179,7 +179,7 @@ def process_file(
         # Save output
         output_path = os.path.join(output_dir, f"{base_name}_cot_examples.json")
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(result, f, indent=2)
+            json.dump(result, f, indent=2, ensure_ascii=False)
         
         if verbose:
             # Print some example content
@@ -302,10 +302,10 @@ def process_file(
             with open(output_path, 'w', encoding='utf-8') as f:
                 if is_single_conversation and len(enhanced_conversations) == 1:
                     # Save the single conversation
-                    json.dump(enhanced_conversations[0], f, indent=2)
+                    json.dump(enhanced_conversations[0], f, indent=2, ensure_ascii=False)
                 else:
                     # Save the array of conversations
-                    json.dump(enhanced_conversations, f, indent=2)
+                    json.dump(enhanced_conversations, f, indent=2, ensure_ascii=False)
             
             if verbose:
                 print(f"Enhanced {len(enhanced_conversations)} conversation(s)")

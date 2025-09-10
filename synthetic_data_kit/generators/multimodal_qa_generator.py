@@ -98,7 +98,7 @@ class MultimodalQAGenerator:
         output_path = os.path.join(output_dir, f"{base_name}.json")
         with open(output_path, "w", encoding="utf-8") as f:
             import json
-            json.dump({"qa_pairs": qa_pairs}, f, indent=2)
+            json.dump({"qa_pairs": qa_pairs}, f, indent=2, ensure_ascii=False)
         if verbose:
             print(f"Saved processed multimodal QA pairs to {output_path}")
         return output_path 
