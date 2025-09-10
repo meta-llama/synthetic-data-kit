@@ -181,6 +181,30 @@ class LLMClient:
             client_kwargs['base_url'] = self.api_base
         
         self.openai_client = OpenAI(**client_kwargs)
+
+    def _openai_token_param(self, model_name: Optional[str] = None) -> str:
+        """Return the correct token limit parameter name for the given OpenAI model.
+
+        Some newer models (e.g., GPT-5 series) do not accept 'max_tokens' and require
+        'max_completion_tokens' instead. This helper returns the appropriate key.
+        """
+        name = (model_name or self.model or "").lower()
+        # GPT-5 series require 'max_completion_tokens'
+        if name.startswith("gpt-5"):
+            return "max_completion_tokens"
+        # Default for chat.completions
+        return "max_tokens"
+
+    def _openai_include_sampling_params(self, model_name: Optional[str] = None) -> bool:
+        """Determine whether to include sampling params like temperature/top_p.
+
+        Some newer models (e.g., GPT-5 series) restrict sampling controls and only
+        support defaults. For those models, we must omit these parameters.
+        """
+        name = (model_name or self.model or "").lower()
+        if name.startswith("gpt-5"):
+            return False
+        return True
     
     def _check_vllm_server(self) -> tuple:
         """Check if the VLLM server is running and accessible"""
@@ -249,13 +273,18 @@ class LLMClient:
         for attempt in range(self.max_retries):
             try:
                 # Create the completion request
-                response = self.openai_client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p
-                )
+                token_param = self._openai_token_param(self.model)
+                req_kwargs = {
+                    "model": self.model,
+                    "messages": messages,
+                }
+                # Include sampling params only if allowed by the model
+                if self._openai_include_sampling_params(self.model):
+                    req_kwargs["temperature"] = temperature
+                    req_kwargs["top_p"] = top_p
+                req_kwargs[token_param] = max_tokens
+
+                response = self.openai_client.chat.completions.create(**req_kwargs)
                 
                 if verbose:
                     logger.info(f"Received response from {self.provider}")
@@ -565,13 +594,18 @@ class LLMClient:
         for attempt in range(self.max_retries):
             try:
                 # Asynchronously call the API
-                response = await async_client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p
-                )
+                token_param = self._openai_token_param(self.model)
+                req_kwargs = {
+                    "model": self.model,
+                    "messages": messages,
+                }
+                # Include sampling params only if allowed by the model
+                if self._openai_include_sampling_params(self.model):
+                    req_kwargs["temperature"] = temperature
+                    req_kwargs["top_p"] = top_p
+                req_kwargs[token_param] = max_tokens
+
+                response = await async_client.chat.completions.create(**req_kwargs)
                 
                 if verbose:
                     logger.info(f"Received response from {self.provider}")

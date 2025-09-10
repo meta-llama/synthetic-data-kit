@@ -40,7 +40,7 @@ outputs/
 Thumbs.db
 
 {new_directory}
-
+.env
 # Common misspellings / alternate names for generated artifacts
 inferenced/
 outptu/
