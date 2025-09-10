@@ -188,9 +188,11 @@ class LLMClient:
         Some newer models (e.g., GPT-5 series) do not accept 'max_tokens' and require
         'max_completion_tokens' instead. This helper returns the appropriate key.
         """
-        name = (model_name or self.model or "").lower()
-        # GPT-5 series require 'max_completion_tokens'
+        name = (model_name or self.model or "").lower().strip()
+        # GPT-5 and OpenAI O-series (o1/o2/o3/o4) require 'max_completion_tokens'
         if name.startswith("gpt-5"):
+            return "max_completion_tokens"
+        if name.startswith(("o1", "o2", "o3", "o4")):
             return "max_completion_tokens"
         # Default for chat.completions
         return "max_tokens"
@@ -201,8 +203,11 @@ class LLMClient:
         Some newer models (e.g., GPT-5 series) restrict sampling controls and only
         support defaults. For those models, we must omit these parameters.
         """
-        name = (model_name or self.model or "").lower()
+        name = (model_name or self.model or "").lower().strip()
+        # GPT-5 series and OpenAI O-series (o1/o2/o3/o4) restrict sampling controls
         if name.startswith("gpt-5"):
+            return False
+        if name.startswith(("o1", "o2", "o3", "o4")):
             return False
         return True
     

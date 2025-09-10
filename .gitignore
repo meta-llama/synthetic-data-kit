@@ -9,6 +9,7 @@ data/\ndata/\n*.pdf
 .venv-ci/
 data/
 example_output
+.vscode
 
 # Generated and output files
 data/generated/

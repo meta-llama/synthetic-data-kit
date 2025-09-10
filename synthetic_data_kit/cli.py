@@ -109,11 +109,13 @@ def system_check(
                     messages = [
                         {"role": "user", "content": "Hello"}
                     ]
-                    response = client.chat.completions.create(
-                        model=model,
-                        messages=messages, 
-                        temperature=0.1
-                    )
+                    # Some models (e.g., GPT-5 and OpenAI O-series like o4) don't allow sampling params
+                    name = (model or "").lower().strip()
+                    allow_sampling = not (name.startswith("gpt-5") or name.startswith(("o1", "o2", "o3", "o4")))
+                    create_kwargs = {"model": model, "messages": messages}
+                    if allow_sampling:
+                        create_kwargs["temperature"] = 0.1
+                    response = client.chat.completions.create(**create_kwargs)
                     console.print(f" API endpoint access confirmed", style="green")
                     if api_base:
                         console.print(f"Using custom API base: {api_base}", style="green")
@@ -169,11 +171,13 @@ def system_check(
                     messages = [
                         {"role": "user", "content": "Hello"}
                     ]
-                    response = client.chat.completions.create(
-                        model=model,
-                        messages=messages, 
-                        temperature=0.1
-                    )
+                    # Some models (e.g., GPT-5 and OpenAI O-series like o4) don't allow sampling params
+                    name = (model or "").lower().strip()
+                    allow_sampling = not (name.startswith("gpt-5") or name.startswith(("o1", "o2", "o3", "o4")))
+                    create_kwargs = {"model": model, "messages": messages}
+                    if allow_sampling:
+                        create_kwargs["temperature"] = 0.1
+                    response = client.chat.completions.create(**create_kwargs)
                     console.print(f" OpenAI access confirmed", style="green")
                     console.print(f"Using API base: {api_base}", style="green")
                     console.print(f"Default model: {model}", style="green")
