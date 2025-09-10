@@ -103,6 +103,7 @@ class QAGenerator:
         document_text: str,
         summary: str,
         num_pairs: int = 25,
+    difficulty: Optional[str] = None,
     ) -> List[Dict[str, str]]:
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
@@ -129,6 +130,12 @@ class QAGenerator:
         
         # Get QA generation prompt template
         qa_prompt_template = get_prompt(self.config, "qa_generation")
+        difficulty = (
+            (difficulty or self.generation_config.get("default_difficulty"))
+            .lower()
+            if (difficulty or self.generation_config.get("default_difficulty"))
+            else None
+        )
         
         # Prepare all message batches
         all_messages = []
@@ -139,6 +146,8 @@ class QAGenerator:
                 summary=summary[:100],
                 text=chunk
             )
+            if difficulty in {"easy", "medium", "advanced"}:
+                qa_prompt += f"\n\nDifficulty: {difficulty}. Generate questions that are {difficulty}-level."
             
             # Add language instruction to the system prompt
             lang_instr = self._language_instruction()
@@ -340,7 +349,8 @@ class QAGenerator:
                         documents: List[Dict[str, Any]],
                         num_pairs: int = 25,
                         verbose: bool = False,
-                        rolling_summary: Optional[bool] = False) -> Dict[str, Any]:
+                        rolling_summary: Optional[bool] = False,
+                        difficulty: Optional[str] = None) -> Dict[str, Any]:
         """Process a list of documents to generate QA pairs without rating"""
         # Set the verbose environment variable
         if verbose:
@@ -355,7 +365,7 @@ class QAGenerator:
         summary = self.generate_summary(full_text, rolling_summary=rolling_summary)
 
         # Generate QA pairs
-        qa_pairs = self.generate_qa_pairs(full_text, summary, num_pairs=num_pairs)
+        qa_pairs = self.generate_qa_pairs(full_text, summary, num_pairs=num_pairs, difficulty=difficulty)
 
         all_qa_pairs.extend(qa_pairs)
 

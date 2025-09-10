@@ -6,7 +6,13 @@
 # CLI Logic for synthetic-data-kit
 
 import os
-from dotenv import load_dotenv
+import importlib
+load_dotenv = None
+try:
+    _dotenv = importlib.import_module("dotenv")
+    load_dotenv = getattr(_dotenv, "load_dotenv", None)
+except Exception:
+    load_dotenv = None
 import typer
 from pathlib import Path
 from typing import Optional
@@ -41,7 +47,8 @@ def callback(
     """
     # Load environment variables from .env if present
     try:
-        load_dotenv(override=False)
+        if load_dotenv:
+            load_dotenv(override=False)
     except Exception:
         # Non-fatal if dotenv isn't available at runtime
         pass
@@ -371,6 +378,12 @@ def create(
     content_type: str = typer.Option(
         "qa", "--type", help="Type of content to generate [qa|summary|cot|cot-enhance|multimodal-qa]"
     ),
+    difficulty: Optional[str] = typer.Option(
+        None,
+        "--difficulty",
+        "-d",
+        help="Question difficulty [easy|medium|advanced] (applies to --type qa, cot, and multimodal-qa)",
+    ),
     language: str = typer.Option(
         "english", "--language", help="Output language: 'english' (default) or 'source' to match the input text language"
     ),
@@ -541,6 +554,7 @@ def create(
                 provider=provider,
                 chunk_size=chunk_size,
                 chunk_overlap=chunk_overlap,
+                difficulty=difficulty,
                 language=language,
             )
             
@@ -569,6 +583,7 @@ def create(
                     provider=provider,
                     chunk_size=chunk_size,
                     chunk_overlap=chunk_overlap,
+                    difficulty=difficulty,
                     language=language,
                 )
             if output_path:

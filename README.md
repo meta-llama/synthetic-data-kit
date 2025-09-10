@@ -260,6 +260,11 @@ synthetic-data-kit create ./data/parsed/ --type qa --num-pairs 50
 # Custom chunking
 synthetic-data-kit create document.txt --type qa --chunk-size 2000 --chunk-overlap 100
 
+# Difficulty control (QA, CoT, Multimodal)
+synthetic-data-kit create document.txt --type qa --difficulty advanced
+synthetic-data-kit create document.txt --type cot --difficulty medium
+synthetic-data-kit create data/parsed/document.lance --type multimodal-qa --difficulty easy
+
 # Using different providers
 synthetic-data-kit create document.txt --type qa --provider ollama --model llama3.2:3b
 synthetic-data-kit create document.txt --type qa --provider openai --model gpt-4o
@@ -277,6 +282,7 @@ synthetic-data-kit create document.txt --type cot --language source
 - `--num-pairs`: Number of pairs to generate
 - `--chunk-size`: Text chunk size (default: 4000)
 - `--chunk-overlap`: Overlap between chunks (default: 200)
+- `--difficulty`: Question difficulty for generation (`easy`, `medium`, `advanced`) for `qa`, `cot`, and `multimodal-qa`
 - `--language`: Output language: `english` (default) or `source` to match the input text language
 - `--provider`: LLM provider (`ollama`, `openai`, `vllm`, `api-endpoint`)
 - `--model`: Specific model to use (provider-dependent)

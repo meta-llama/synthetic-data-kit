@@ -118,6 +118,55 @@ def test_create_command(patch_config, test_env):
 
 
 @pytest.mark.functional
+def test_create_help_shows_difficulty(patch_config):
+    """Ensure --difficulty option is visible in help for create."""
+    runner = CliRunner()
+
+    result = runner.invoke(app, ["create", "--help"])
+
+    assert result.exit_code == 0
+    assert "--difficulty" in result.stdout
+    assert "easy|medium|advanced" in result.stdout
+
+
+@pytest.mark.functional
+def test_create_command_with_difficulty_passed(patch_config, test_env):
+    """Test the create command passes --difficulty through to process_file."""
+    runner = CliRunner()
+
+    with tempfile.NamedTemporaryFile(suffix=".txt", mode="w+", delete=False) as f:
+        f.write("Sample text content for testing.")
+        input_path = f.name
+
+    try:
+        with patch("synthetic_data_kit.core.create.process_file") as mock_process:
+            output_path = os.path.join(os.path.dirname(input_path), "output_qa_pairs.json")
+            mock_process.return_value = output_path
+
+            result = runner.invoke(
+                app,
+                [
+                    "create",
+                    input_path,
+                    "--type",
+                    "qa",
+                    "--difficulty",
+                    "advanced",
+                    "--provider",
+                    "api-endpoint",
+                ],
+            )
+
+            assert result.exit_code == 0
+            mock_process.assert_called_once()
+            # verify difficulty kwarg is forwarded
+            assert mock_process.call_args.kwargs.get("difficulty") == "advanced"
+    finally:
+        if os.path.exists(input_path):
+            os.unlink(input_path)
+
+
+@pytest.mark.functional
 def test_curate_command(patch_config, test_env):
     """Test the curate command with a JSON file."""
     runner = CliRunner()

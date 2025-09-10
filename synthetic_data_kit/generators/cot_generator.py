@@ -62,7 +62,7 @@ class COTGenerator:
                 print(f"Error parsing output: {e}")
             return None
     
-    def generate_cot_examples(self, document_text: str, num_examples: int = None) -> List[Dict[str, Any]]:
+    def generate_cot_examples(self, document_text: str, num_examples: int = None, difficulty: Optional[str] = None) -> List[Dict[str, Any]]:
         """Generate chain-of-thought reasoning examples using chunking for large documents"""
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
@@ -73,12 +73,12 @@ class COTGenerator:
         # For small documents, use single call
         single_call_max_size = self.generation_config.get("single_call_max_size", 8000)
         if len(document_text) < single_call_max_size:
-            return self._generate_single_call(document_text, num_examples)
+            return self._generate_single_call(document_text, num_examples, difficulty=difficulty)
         
         # For large documents, use chunking (same logic as QA generator)
-        return self._generate_with_chunking(document_text, num_examples)
+        return self._generate_with_chunking(document_text, num_examples, difficulty=difficulty)
     
-    def _generate_single_call(self, document_text: str, num_examples: int) -> List[Dict[str, Any]]:
+    def _generate_single_call(self, document_text: str, num_examples: int, difficulty: Optional[str] = None) -> List[Dict[str, Any]]:
         """Generate CoT examples in a single API call"""
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
@@ -90,6 +90,8 @@ class COTGenerator:
             num_examples=num_examples,
             text=document_text,
         )
+        if difficulty in {"easy", "medium", "advanced"}:
+            prompt_body += f"\n\nDifficulty: {difficulty}. Craft questions and reasoning at an {difficulty}-level."
         prompt = f"{prompt_body}\n\n{self._language_instruction()}"
         
         # Generate examples
@@ -119,7 +121,7 @@ class COTGenerator:
         
         return examples
     
-    def _generate_with_chunking(self, document_text: str, num_examples: int) -> List[Dict[str, Any]]:
+    def _generate_with_chunking(self, document_text: str, num_examples: int, difficulty: Optional[str] = None) -> List[Dict[str, Any]]:
         """Generate CoT examples using chunking strategy (copied from QA generator)"""
         from synthetic_data_kit.utils.text import split_into_chunks
         
@@ -157,6 +159,8 @@ class COTGenerator:
                 num_examples=examples_per_chunk,
                 text=chunk
             )
+            if difficulty in {"easy", "medium", "advanced"}:
+                cot_prompt_body += f"\n\nDifficulty: {difficulty}. Craft questions and reasoning at an {difficulty}-level."
             cot_prompt = f"{cot_prompt_body}\n\n{self._language_instruction()}"
             
             messages = [
@@ -283,7 +287,7 @@ class COTGenerator:
         
         return enhanced_conversations
     
-    def process_document(self, document_text: str, num_examples: int = None, include_simple_steps: bool = False) -> Dict[str, Any]:
+    def process_document(self, document_text: str, num_examples: int = None, include_simple_steps: bool = False, difficulty: Optional[str] = None) -> Dict[str, Any]:
         """Process a document to generate CoT examples"""
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
@@ -303,7 +307,7 @@ class COTGenerator:
         )
         
         # Generate CoT examples
-        examples = self.generate_cot_examples(document_text, num_examples)
+        examples = self.generate_cot_examples(document_text, num_examples, difficulty=difficulty)
         
         # Format into simple conversation format as well
         conversations = []

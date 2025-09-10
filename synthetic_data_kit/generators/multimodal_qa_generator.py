@@ -31,7 +31,7 @@ class MultimodalQAGenerator:
             return "Please respond in the same language as the provided text."
         return "Please respond in English."
 
-    def generate_qa_pairs(self, documents, num_pairs=25, verbose=False):
+    def generate_qa_pairs(self, documents, num_pairs=25, verbose=False, difficulty: Optional[str] = None):
         # Concatenate all text and collect all images (if any)
         all_text = " ".join([doc["text"] for doc in documents])
         images = [doc.get("image", None) for doc in documents]
@@ -59,6 +59,8 @@ class MultimodalQAGenerator:
                 "Return ONLY valid JSON as a list: [{\"question\": \"...\", \"answer\": \"...\"}, ...]. "
                 "Do not include any explanation, markdown, or text outside the JSON."
             )
+            if difficulty in {"easy", "medium", "advanced"}:
+                system_prompt += f"\n\nDifficulty: {difficulty}. Generate questions that are {difficulty}-level."
             system_prompt = f"{system_prompt}\n\n{self._language_instruction()}"
             messages = [
                 {"role": "system", "content": system_prompt},
@@ -92,10 +94,11 @@ class MultimodalQAGenerator:
                 break
         return all_qa_pairs[:num_pairs]
 
-    def process_dataset(self, documents, output_dir: str, num_examples=None, verbose=False, base_name: str = "multimodal_qa_pairs") -> str:
+    def process_dataset(self, documents, output_dir: str, num_examples=None, verbose=False, base_name: str = "multimodal_qa_pairs", difficulty: Optional[str] = None) -> str:
         # documents: list of dicts with 'text' and 'image'
-        qa_pairs = self.generate_qa_pairs(documents, num_examples or 25, verbose=verbose)
-        output_path = os.path.join(output_dir, f"{base_name}.json")
+        qa_pairs = self.generate_qa_pairs(documents, num_examples or 25, verbose=verbose, difficulty=difficulty)
+        suffix = f"_{difficulty}" if difficulty in {"easy", "medium", "advanced"} else ""
+        output_path = os.path.join(output_dir, f"{base_name}{suffix}.json")
         with open(output_path, "w", encoding="utf-8") as f:
             import json
             json.dump({"qa_pairs": qa_pairs}, f, indent=2, ensure_ascii=False)

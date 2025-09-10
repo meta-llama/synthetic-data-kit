@@ -34,6 +34,7 @@ def process_file(
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
     rolling_summary: Optional[bool] = False,
+    difficulty: Optional[str] = None,
     language: str = "english",
 ) -> str:
     """Process a file to generate content
@@ -84,6 +85,12 @@ def process_file(
     lang_mode = (language or "english").lower()
     target_language = "english" if lang_mode != "source" else "source"
 
+    # Normalize difficulty early
+    if difficulty:
+        difficulty = difficulty.lower()
+        if difficulty not in {"easy", "medium", "advanced"}:
+            difficulty = None
+
     if content_type == "qa":
         generator = QAGenerator(client, config_path, target_language=target_language)
 
@@ -98,11 +105,13 @@ def process_file(
             documents,
             num_pairs=num_pairs,
             verbose=verbose,
-            rolling_summary=rolling_summary
+            rolling_summary=rolling_summary,
+            difficulty=difficulty,
         )
         
         # Save output
-        output_path = os.path.join(output_dir, f"{base_name}_qa_pairs.json")
+        suffix = f"_{difficulty}" if difficulty else ""
+        output_path = os.path.join(output_dir, f"{base_name}{suffix}_qa_pairs.json")
         print(f"Saving result to {output_path}")
             
         # Now save the actual result
@@ -123,6 +132,7 @@ def process_file(
             num_examples=num_pairs,
             verbose=verbose,
             base_name=base_name,
+            difficulty=difficulty,
         )
         return output_path
 
@@ -173,11 +183,13 @@ def process_file(
         result = generator.process_document(
             full_text,
             num_examples=num_pairs,
-            include_simple_steps=verbose  # More detailed if verbose is enabled
+            include_simple_steps=verbose,  # More detailed if verbose is enabled
+            difficulty=difficulty,
         )
         
         # Save output
-        output_path = os.path.join(output_dir, f"{base_name}_cot_examples.json")
+        suffix = f"_{difficulty}" if difficulty else ""
+        output_path = os.path.join(output_dir, f"{base_name}{suffix}_cot_examples.json")
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(result, f, indent=2, ensure_ascii=False)
         
