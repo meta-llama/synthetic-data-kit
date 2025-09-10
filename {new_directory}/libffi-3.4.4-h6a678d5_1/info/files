@@ -1,0 +1,15 @@
+include/ffi.h
+include/ffitarget.h
+lib/libffi.7.so
+lib/libffi.8.so
+lib/libffi.a
+lib/libffi.so
+lib/libffi.so.7
+lib/libffi.so.8
+lib/libffi.so.8.1.2
+lib/pkgconfig/libffi.pc
+share/info/libffi.info
+share/man/man3/ffi.3
+share/man/man3/ffi_call.3
+share/man/man3/ffi_prep_cif.3
+share/man/man3/ffi_prep_cif_var.3

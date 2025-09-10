@@ -1,0 +1,25 @@
+{
+  "arch": "x86_64",
+  "build": "h9b100fa_0",
+  "build_number": 0,
+  "channel": "https://repo.anaconda.com/pkgs/main/linux-64",
+  "constrains": [],
+  "depends": [
+    "libgcc-ng >=11.2.0",
+    "pthread-stubs",
+    "xorg-libxau >=1.0.12,<2.0a0",
+    "xorg-libxdmcp >=1.1.5,<2.0a0"
+  ],
+  "fn": "libxcb-1.17.0-h9b100fa_0.conda",
+  "license": "MIT",
+  "license_family": "MIT",
+  "md5": "fdf0d380fa3809a301e2dbc0d5183883",
+  "name": "libxcb",
+  "platform": "linux",
+  "sha256": "f9cd1564fc83261ddba7496404f18143d4f8fda52e42c040005c1b1ad3e47f56",
+  "size": 440690,
+  "subdir": "linux-64",
+  "timestamp": 1746022211000,
+  "url": "https://repo.anaconda.com/pkgs/main/linux-64/libxcb-1.17.0-h9b100fa_0.conda",
+  "version": "1.17.0"
+}

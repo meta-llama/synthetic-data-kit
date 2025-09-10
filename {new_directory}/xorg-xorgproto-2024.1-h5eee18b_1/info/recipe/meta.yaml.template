@@ -1,0 +1,85 @@
+{% set xorg_name = "xorgproto" %}
+{% set xorg_category = "proto" %}
+{% set name = "xorg-" ~ xorg_name %}
+{% set version = "2024.1" %}
+{% set sha256 = "372225fd40815b8423547f5d890c5debc72e88b91088fbfb13158c20495ccb59" %}
+{% set am_version = "1.15" %} # keep synchronized with build.sh
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://www.x.org/releases/individual/{{ xorg_category }}/{{ xorg_name }}-{{ version }}.tar.xz
+  sha256: {{ sha256 }}
+  patches:
+    - 0001-windows-fds-bits.patch  # [win]
+
+build:
+  number: 1
+  run_exports:
+    - {{ pin_subpackage('xorg-xorgproto') }}
+
+requirements:
+  build:
+    - m2-autoconf  # [win]
+    - m2-automake{{ am_version }}  # [win]
+    - m2-libtool  # [win]
+    - pkg-config  # [unix]
+    - m2-pkg-config  # [win]
+    - gnuconfig  # [unix]
+    - m2-base  # [win]
+    - make  # [unix]
+    - m2-make  # [win]
+    - gnuconfig  # [unix]
+    - {{ compiler('c') }}        # [unix]
+    - {{ compiler('m2w64_c') }}  # [win]
+  host:
+    - xorg-util-macros
+  run_constrained:
+    - xorg-applewmproto <0.0.0a
+    - xorg-bigreqsproto <0.0.0a
+    - xorg-compositeproto <0.0.0a
+    - xorg-damageproto <0.0.0a
+    - xorg-dmxproto <0.0.0a
+    - xorg-dpmsproto <0.0.0a
+    - xorg-dri2proto <0.0.0a
+    - xorg-dri3proto <0.0.0a
+    - xorg-fixesproto <0.0.0a
+    - xorg-fontsproto <0.0.0a
+    - xorg-glproto <0.0.0a
+    - xorg-inputproto <0.0.0a
+    - xorg-kbproto <0.0.0a
+    - xorg-presentproto <0.0.0a
+    - xorg-randrproto <0.0.0a
+    - xorg-recordproto <0.0.0a
+    - xorg-renderproto <0.0.0a
+    - xorg-resourceproto <0.0.0a
+    - xorg-scrnsaverproto <0.0.0a
+    - xorg-videoproto <0.0.0a
+    - xorg-xcmiscproto <0.0.0a
+    - xorg-xextproto <0.0.0a
+    - xorg-xf86bigfontproto <0.0.0a
+    - xorg-xf86dgaproto <0.0.0a
+    - xorg-xf86driproto <0.0.0a
+    - xorg-xf86vidmodeproto <0.0.0a
+    - xorg-xineramaproto <0.0.0a
+    - xorg-xproto <0.0.0a
+    - xorg-xwaylandproto <0.0.0a
+
+test:
+  commands:
+    - test -e $PREFIX/include/X11/extensions/damageproto.h  # [not win]
+
+about:
+  home: https://www.x.org/
+  dev_url: https://gitlab.freedesktop.org/xorg/proto/xorgproto
+  doc_url: https://gitlab.freedesktop.org/xorg/proto/xorgproto
+  license: MIT
+  license_family: MIT
+  license_file: licenses/
+  summary: X.org protocol headers
+
+extra:
+  recipe-maintainers:
+    - pkgw

@@ -1,0 +1,10 @@
+{
+  "noarch": {
+    "entry_points": [
+      "pip = pip._internal.cli.main:main",
+      "pip3 = pip._internal.cli.main:main"
+    ],
+    "type": "python"
+  },
+  "package_metadata_version": 1
+}

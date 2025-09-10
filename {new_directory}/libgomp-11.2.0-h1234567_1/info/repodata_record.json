@@ -1,0 +1,21 @@
+{
+  "arch": "x86_64",
+  "build": "h1234567_1",
+  "build_number": 1,
+  "channel": "https://repo.anaconda.com/pkgs/main/linux-64",
+  "constrains": [],
+  "depends": [
+    "_libgcc_mutex 0.1 main"
+  ],
+  "fn": "libgomp-11.2.0-h1234567_1.conda",
+  "license": "GPL-3.0-only WITH GCC-exception-3.1",
+  "md5": "b372c0eea9b60732fdae4b817a63c8cd",
+  "name": "libgomp",
+  "platform": "linux",
+  "sha256": "a1c6e599df45e116af81c36ec4c9efb1793fa3a0b854dd90dd6c8813cd476e90",
+  "size": 485145,
+  "subdir": "linux-64",
+  "timestamp": 1654090775000,
+  "url": "https://repo.anaconda.com/pkgs/main/linux-64/libgomp-11.2.0-h1234567_1.conda",
+  "version": "11.2.0"
+}

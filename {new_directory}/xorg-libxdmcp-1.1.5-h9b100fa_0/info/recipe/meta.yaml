@@ -1,0 +1,76 @@
+# This file created by conda-build 24.1.2
+# meta.yaml template originally from:
+# /feedstock/recipe, last modified Wed Apr 30 05:50:43 2025
+# ------------------------------------------------
+
+package:
+  name: xorg-libxdmcp
+  version: 1.1.5
+source:
+  patches: null
+  sha256: d8a5222828c3adab70adf69a5583f1d32eb5ece04304f7f8392b6a353aa2228c
+  url: https://www.x.org/releases/individual/lib/libXdmcp-1.1.5.tar.xz
+build:
+  number: '0'
+  run_exports:
+    - xorg-libxdmcp >=1.1.5,<2.0a0
+  string: h9b100fa_0
+requirements:
+  build:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - _sysroot_linux-64_curr_repodata_hack 3 haa98f57_10
+    - autoconf 2.71 pl5340h5eee18b_0
+    - automake 1.16.5 pl5340h06a4308_1
+    - binutils_impl_linux-64 2.40 h5293946_0
+    - binutils_linux-64 2.40.0 hc2dff05_2
+    - gcc_impl_linux-64 11.2.0 h1234567_1
+    - gcc_linux-64 11.2.0 h5c386dc_2
+    - gettext 0.21.0 hedfda30_2
+    - gnuconfig 2021.05.24 hd3eb1b0_0
+    - icu 73.1 h6a678d5_0
+    - kernel-headers_linux-64 3.10.0 h57e8cba_10
+    - ld_impl_linux-64 2.40 h12ee557_0
+    - libgcc-devel_linux-64 11.2.0 h1234567_1
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libstdcxx-ng 11.2.0 h1234567_1
+    - libtool 2.4.7 h6a678d5_0
+    - libxml2 2.13.8 hfdd30dd_0
+    - m4 1.4.18 h4e445db_0
+    - make 4.2.1 h1bed415_1
+    - ncurses 6.4 h6a678d5_0
+    - perl 5.38.2 0_h5eee18b_perl5
+    - pkg-config 0.29.2 h1bed415_8
+    - sysroot_linux-64 2.17 h57e8cba_10
+    - xz 5.6.4 h5eee18b_1
+    - zlib 1.2.13 h5eee18b_1
+  host:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - xorg-util-macros 1.19.0 h27cfd23_2
+    - xorg-xorgproto 2024.1 h5eee18b_0
+  run:
+    - libgcc-ng >=11.2.0
+test:
+  commands:
+    - test -f $PREFIX/include/X11/Xdmcp.h
+    - test -f $PREFIX/lib/libXdmcp.so
+about:
+  dev_url: https://gitlab.freedesktop.org/xorg/lib/libxdmcp
+  doc_url: https://gitlab.freedesktop.org/xorg/lib/libxdmcp
+  home: https://www.x.org/
+  license: MIT
+  license_family: MIT
+  license_file: COPYING
+  summary: The X-windows display manager client protocol library.
+extra:
+  copy_test_source_files: true
+  final: true
+  flow_run_id: 33118a3c-c965-47da-8617-b44413e9fc8a
+  recipe-maintainers:
+    - pkgw
+  remote_url: git@github.com:AnacondaRecipes/xorg-libxdmcp-feedstock.git
+  sha: 2398e6793e38e62a0fecaf639d62b04b4082d6ff

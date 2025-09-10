@@ -1,0 +1,7 @@
+prefix=/croot/xorg-xorgproto_1746046208107/_h_env_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_pl
+includedir=${prefix}/include
+ 
+Name: XF86DRIProto
+Description: XF86DRI extension headers
+Version: 2.1.1
+Cflags: -I${includedir}/X11/dri

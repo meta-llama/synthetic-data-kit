@@ -1,0 +1,65 @@
+{% set xorg_name = "libXdmcp" %}
+{% set xorg_category = "lib" %}
+{% set name = "xorg-" ~ xorg_name %}
+{% set version = "1.1.5" %}
+{% set sha256 = "d8a5222828c3adab70adf69a5583f1d32eb5ece04304f7f8392b6a353aa2228c" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://www.x.org/releases/individual/{{ xorg_category }}/{{ xorg_name }}-{{ version }}.tar.xz
+  sha256: {{ sha256 }}
+  patches:
+    - windows.patch  # [win]
+
+build:
+  number: 0
+  skip: True  # [win]
+  run_exports:
+    - {{ pin_subpackage(name|lower) }}
+
+requirements:
+  build:
+    - m2-autoconf                   # [win]
+    - m2-automake{{ am_version }}   # [win]
+    - m2-libtool                    # [win]
+    - pkg-config                    # [unix]
+    - m2-pkg-config                 # [win]
+    - gnuconfig                     # [unix]
+    - m2-base                       # [win]
+    - make                          # [unix]
+    - m2-make                       # [win]
+    - {{ compiler("c") }}           # [unix]
+    - {{ compiler("m2w64_c") }}     # [win]
+    - autoconf                      # [unix]
+    - automake                      # [unix]
+    - gettext                       # [unix]
+    - libtool                       # [unix]
+  host:
+    - xorg-util-macros
+    - xorg-xorgproto
+
+test:
+  commands:
+    - echo on  # [win]
+    - test -f $PREFIX/include/X11/Xdmcp.h  # [unix]
+    - test -f $PREFIX/lib/libXdmcp.dylib   # [osx]
+    - test -f $PREFIX/lib/libXdmcp.so      # [linux]
+    - if not exist %PREFIX%/Library/lib/libXdmcp.dll.a exit /b 1    # [win]
+    - if not exist %PREFIX%/Library/bin/msys-Xdmcp-*.dll exit /b 1  # [win]
+    - if not exist %LIBRARY_INC%\X11\Xdmcp.h exit /b 1              # [win]
+
+about:
+  home: https://www.x.org/
+  dev_url: https://gitlab.freedesktop.org/xorg/lib/libxdmcp
+  doc_url: https://gitlab.freedesktop.org/xorg/lib/libxdmcp
+  license: MIT
+  license_family: MIT
+  license_file: COPYING
+  summary: 'The X-windows display manager client protocol library.'
+
+extra:
+  recipe-maintainers:
+    - pkgw

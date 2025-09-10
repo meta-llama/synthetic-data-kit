@@ -1,0 +1,5 @@
+{
+  "channel_targets": "defaults",
+  "c_compiler": "gcc",
+  "c_compiler_version": "11.2.0"
+}

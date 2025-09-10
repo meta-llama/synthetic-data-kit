@@ -1,0 +1,16 @@
+{
+  "arch": "x86_64",
+  "build": "h6a678d5_1",
+  "build_number": 1,
+  "depends": [
+    "libgcc-ng >=11.2.0",
+    "libstdcxx-ng >=11.2.0"
+  ],
+  "license": "MIT",
+  "license_family": "MIT",
+  "name": "libffi",
+  "platform": "linux",
+  "subdir": "linux-64",
+  "timestamp": 1714483282916,
+  "version": "3.4.4"
+}

@@ -1,0 +1,75 @@
+{% set version = "5.6.4" %}
+{% set major = version.split('.')[0] %}
+
+package:
+  name: xz
+  version: {{ version }}
+
+source:
+  url: https://github.com/tukaani-project/xz/releases/download/v{{ version }}/xz-{{ version }}.tar.gz
+  sha256: 269e3f2e512cbd3314849982014dc199a7b2148cf5c91cedc6db629acdf5e09b
+
+build:
+  number: 1
+  run_exports:
+    # XZ's track record of backcompat is very good.  Keep default pins (next major version)
+    #    https://abi-laboratory.pro/tracker/timeline/xz/
+    - {{ pin_subpackage('xz') }}
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+    - cmake-no-system
+    - ninja-base
+  host:
+    - msinttypes  # [win and vc<14]
+
+test:
+  requires:
+    # To use 'conda inspect', install conda-build
+    - conda-build # [osx]
+    - pkg-config  # [unix]
+  commands:
+    - xz --help        # [not win]
+    - unxz --help      # [not win]
+    - lzma --help      # [not win]
+    - xz.exe --help    # [win]
+    - unxz.exe --help  # [win]
+    - test -f ${PREFIX}/include/lzma.h                          # [unix]
+    - test -f ${PREFIX}/lib/cmake/liblzma/liblzma-config.cmake  # [unix]
+    - test -f ${PREFIX}/lib/pkgconfig/liblzma.pc                # [unix]
+    - test -f `pkg-config --variable=libdir --dont-define-prefix liblzma`/liblzma${SHLIB_EXT}  # [unix]
+    - test ! -f ${PREFIX}/lib/liblzma.a                        # [unix]
+    - test -f ${PREFIX}/lib/liblzma${SHLIB_EXT}                # [unix]
+    - test -f ${PREFIX}/lib/liblzma.{{ major }}${SHLIB_EXT}    # [osx]
+    - test -f ${PREFIX}/lib/liblzma${SHLIB_EXT}.{{ major }}    # [linux]
+    - test -f ${PREFIX}/lib/liblzma${SHLIB_EXT}.{{ version }}  # [linux]
+    - if not exist %PREFIX%\\Library\\bin\\liblzma.dll exit 1            # [win]
+    - if exist %PREFIX%\\Library\\lib\\lzma_static.lib exit 1            # [win]
+    - if not exist %PREFIX%\\Library\\lib\\pkgconfig\\liblzma.pc exit 1  # [win]
+    - if not exist %PREFIX%\\Library\\include\\lzma.h exit 1             # [win]
+    - if not exist %PREFIX%\\Library\\bin\\xz.exe exit 1                 # [win]
+    - if exist %PREFIX%\\lib exit 1                                      # [win]
+    - conda inspect linkages -p $PREFIX $PKG_NAME                        # [not win]
+    - conda inspect objects -p $PREFIX $PKG_NAME                         # [osx]
+
+about:
+  home: https://tukaani.org/xz/
+  license: LGPL-2.1-or-later and GPL-2.0-or-later and 0BSD
+  license_file: COPYING
+  license_family: GPL2
+  summary: Data compression software with high compression ratio
+  description: |
+    XZ Utils is free general-purpose data compression software with a high
+    compression ratio. XZ Utils were written for POSIX-like systems, but also
+    work on some not-so-POSIX systems.
+  doc_url: https://tukaani.org/xz/#_documentation
+  dev_url: https://github.com/tukaani-project/xz
+
+extra:
+  recipe-maintainers:
+    - msarahan
+    - ocefpaf
+    - mingwandroid
+    - nehaljwani
+    - scopatz

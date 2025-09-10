@@ -1,0 +1,14 @@
+{
+  "arch": "x86_64",
+  "build": "h1234567_1",
+  "build_number": 1,
+  "depends": [
+    "_libgcc_mutex 0.1 main"
+  ],
+  "license": "GPL-3.0-only WITH GCC-exception-3.1",
+  "name": "libgomp",
+  "platform": "linux",
+  "subdir": "linux-64",
+  "timestamp": 1654090775721,
+  "version": "11.2.0"
+}

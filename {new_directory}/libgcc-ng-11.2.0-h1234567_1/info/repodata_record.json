@@ -1,0 +1,28 @@
+{
+  "arch": "x86_64",
+  "build": "h1234567_1",
+  "build_number": 1,
+  "channel": "https://repo.anaconda.com/pkgs/main/linux-64",
+  "constrains": [
+    "_libgcc_mutex 0.1 main",
+    "_openmp_mutex",
+    "libgomp 11.2.0 h1234567_1"
+  ],
+  "depends": [
+    "_libgcc_mutex 0.1 main",
+    "_openmp_mutex",
+    "_libgcc_mutex * main",
+    "__glibc >=2.17"
+  ],
+  "fn": "libgcc-ng-11.2.0-h1234567_1.conda",
+  "license": "GPL-3.0-only WITH GCC-exception-3.1",
+  "md5": "a87728dabf3151fb9cfa990bd2eb0464",
+  "name": "libgcc-ng",
+  "platform": "linux",
+  "sha256": "cdcce11f1c6ca57ba686ab92f3a5c122efe1e0630e00c6ad275624ce79008aa7",
+  "size": 5602184,
+  "subdir": "linux-64",
+  "timestamp": 1654090827000,
+  "url": "https://repo.anaconda.com/pkgs/main/linux-64/libgcc-ng-11.2.0-h1234567_1.conda",
+  "version": "11.2.0"
+}

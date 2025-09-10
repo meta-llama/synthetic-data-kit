@@ -37,7 +37,7 @@ api-endpoint:
 
 # OpenAI configuration
 openai:
-  api_key: "sk-your-openai-api-key"    # OpenAI API key (can use OPENAI_API_KEY env var)
+  api_key: null    # OpenAI API key (will use OPENAI_API_KEY env var if set)
   model: "gpt-4o"                      # Default model to use
   api_base: "https://api.openai.com/v1" # OpenAI API base URL
   max_retries: 3                       # Number of retries for API calls

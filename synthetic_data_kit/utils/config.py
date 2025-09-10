@@ -38,15 +38,15 @@ def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Configuration file not found at {config_path}")
     
-    print(f"Loading config from: {config_path}")
+    # print(f"Loading config from: {config_path}")
     with open(config_path, 'r') as f:
         config = yaml.safe_load(f)
     
     # Debug: Print LLM provider if it exists
-    if 'llm' in config and 'provider' in config['llm']:
-        print(f"Config has LLM provider set to: {config['llm']['provider']}")
-    else:
-        print("Config does not have LLM provider set")
+    # if 'llm' in config and 'provider' in config['llm']:
+    #     print(f"Config has LLM provider set to: {config['llm']['provider']}")
+    # else:
+    #     print("Config does not have LLM provider set")
     
     return config
 

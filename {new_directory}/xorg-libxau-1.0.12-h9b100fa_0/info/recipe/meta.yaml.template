@@ -1,0 +1,60 @@
+{% set xorg_name = "libXau" %}
+{% set xorg_category = "lib" %}
+{% set name = "xorg-" ~ xorg_name %}
+{% set version = "1.0.12" %}
+{% set sha256 = "74d0e4dfa3d39ad8939e99bda37f5967aba528211076828464d2777d477fc0fb" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://www.x.org/releases/individual/{{ xorg_category }}/{{ xorg_name }}-{{ version }}.tar.xz
+  sha256: {{ sha256 }}
+
+build:
+  number: 0
+  detect_binary_files_with_prefix: true
+  run_exports:
+    - {{ pin_subpackage(name|lower) }}
+
+requirements:
+  build:
+    - m2-autoconf                   # [win]
+    - m2-automake{{ am_version }}   # [win]
+    - m2-libtool                    # [win]
+    - m2-pkg-config                 # [win]
+    - pkg-config                    # [not win]
+    - m2-base                       # [win]
+    - {{ compiler("c") }}           # [unix]
+    - {{ compiler("m2w64_c") }}     # [win]
+    - make                          # [unix]
+    - m2-make                       # [win]
+    - gettext                       # [unix]
+  host:
+    - xorg-util-macros
+    - xorg-xorgproto
+
+test:
+  commands:
+    {% set lib_idents = [ "Xau" ] %}
+    {% for lib_ident in lib_idents %}
+    - test -f $PREFIX/include/X11/{{ lib_ident }}th.h  # [unix]
+    - test -f $PREFIX/lib/lib{{ lib_ident }}.dylib  # [osx]
+    - test -f $PREFIX/lib/lib{{ lib_ident }}.so  # [linux]
+    - if not exist %PREFIX%/Library/lib/lib{{ lib_ident }}.dll.a exit /b 1  # [win]
+    - if not exist %PREFIX%/Library/bin/msys-{{ lib_ident }}-*.dll exit /b 1  # [win]
+    {% endfor %}
+
+about:
+  home: https://www.x.org/
+  dev_url: https://gitlab.freedesktop.org/xorg/lib/libxau
+  doc_url: https://gitlab.freedesktop.org/xorg/lib/libxau
+  license: MIT
+  license_family: MIT
+  license_file: COPYING
+  summary: 'A simple X Windows authentication protocol.'
+
+extra:
+  recipe-maintainers:
+    - pkgw

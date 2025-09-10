@@ -1,0 +1,25 @@
+From c12df60ecaa0be147bb57f03fd031ca0776eb24c Mon Sep 17 00:00:00 2001
+From: Charles Bousseau <cbousseau@anaconda.com>
+Date: Fri, 16 Jun 2023 13:14:12 -0400
+Subject: [PATCH] [PATCH] Use OpenSSL 3 instead of 1_1
+
+---
+ PCbuild/openssl.props | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/PCbuild/openssl.props b/PCbuild/openssl.props
+index 7071bb57c0..b336a193ef 100644
+--- a/PCbuild/openssl.props
++++ b/PCbuild/openssl.props
+@@ -10,7 +10,7 @@
+     </Link>
+   </ItemDefinitionGroup>
+   <PropertyGroup>
+-    <_DLLSuffix>-1_1</_DLLSuffix>
++    <_DLLSuffix>-3</_DLLSuffix>
+     <_DLLSuffix Condition="$(Platform) == 'ARM'">$(_DLLSuffix)-arm</_DLLSuffix>
+     <_DLLSuffix Condition="$(Platform) == 'ARM64'">$(_DLLSuffix)-arm64</_DLLSuffix>
+     <OpenSSLDLLSuffix>$(_DLLSuffix)</OpenSSLDLLSuffix>
+-- 
+2.32.1 (Apple Git-133)
+

@@ -1,0 +1,22 @@
+{
+  "arch": "x86_64",
+  "build": "h9b100fa_0",
+  "build_number": 0,
+  "channel": "https://repo.anaconda.com/pkgs/main/linux-64",
+  "constrains": [],
+  "depends": [
+    "libgcc-ng >=11.2.0"
+  ],
+  "fn": "xorg-libxau-1.0.12-h9b100fa_0.conda",
+  "license": "MIT",
+  "license_family": "MIT",
+  "md5": "a8005a9f6eb903e113cd5363e8a11459",
+  "name": "xorg-libxau",
+  "platform": "linux",
+  "sha256": "68acf87da69a0237d5083798a9cc9b89d2887a84a5323aa740006b53cd5159ef",
+  "size": 13582,
+  "subdir": "linux-64",
+  "timestamp": 1745958707000,
+  "url": "https://repo.anaconda.com/pkgs/main/linux-64/xorg-libxau-1.0.12-h9b100fa_0.conda",
+  "version": "1.0.12"
+}

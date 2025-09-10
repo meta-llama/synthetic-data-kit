@@ -1,0 +1,52 @@
+diff --git a/configure.ac b/configure.ac
+index 4e6f028..031a3bd 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -140,7 +140,7 @@ esac
+ have_win32="no"
+ lt_enable_auto_import=""
+ case $host_os in
+-mingw*)
++mingw*|*msys*)
+         have_win32="yes"
+         lt_enable_auto_import="-Wl,--enable-auto-import"
+         ;;
+@@ -212,7 +212,7 @@ esac
+ 
+ dnl Link with winsock for socket functions on MinGW
+ case $host_os in
+-        *mingw*)
++        *mingw*|*msys*)
+                 AC_CHECK_LIB([ws2_32],[main])
+                 ;;
+         *)
+@@ -252,16 +252,14 @@ AC_ARG_WITH(serverside-support, AS_HELP_STRING([--with-serverside-support], [Bui
+ 
+ AM_CONDITIONAL(XCB_SERVERSIDE_SUPPORT, test "x$XCB_SERVERSIDE_SUPPORT" = "xyes")
+ 
+-AC_CONFIG_FILES([
+-Makefile
++AC_CONFIG_FILES([Makefile
+ doc/Makefile
+ man/Makefile
+ src/Makefile
+ tests/Makefile
+ ])
+ 
+-AC_CONFIG_FILES([
+-xcb.pc
++AC_CONFIG_FILES([xcb.pc
+ xcb-composite.pc
+ xcb-damage.pc
+ xcb-dbe.pc
+@@ -292,8 +290,7 @@ xcb-xv.pc
+ xcb-xvmc.pc
+ ])
+ 
+-AC_CONFIG_FILES([
+-doc/xcb.doxygen
++AC_CONFIG_FILES([doc/xcb.doxygen
+ ])
+ 
+ AC_OUTPUT
+ 

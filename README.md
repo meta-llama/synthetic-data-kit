@@ -132,6 +132,69 @@ pip install json5
    synthetic-data-kit save-as data/curated/research_paper_cleaned.json --format alpaca
    ```
 
+## LLM Providers & Models
+
+Synthetic Data Kit supports multiple LLM providers with flexible model selection:
+
+### Supported Providers
+
+- **Ollama** (Local, recommended for privacy)
+- **OpenAI** (Cloud, high quality)
+- **vLLM** (Local inference server)
+- **API Endpoint** (Custom/compatible APIs)
+
+### Provider Setup
+
+#### Ollama (Recommended)
+```bash
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull recommended models
+ollama pull llama3.2:3b      # Fast, good quality
+ollama pull llama3.1:8b      # Better quality, slower
+ollama pull mistral:7b       # Alternative option
+
+# Use in toolkit
+synthetic-data-kit create document.txt --provider ollama --model llama3.2:3b
+```
+
+#### OpenAI
+```bash
+# Set API key
+export OPENAI_API_KEY="your-api-key-here"
+
+# Use in toolkit
+synthetic-data-kit create document.txt --provider openai --model gpt-4o
+synthetic-data-kit create document.txt --provider openai --model gpt-3.5-turbo
+```
+
+#### vLLM
+```bash
+# Install vLLM
+pip install vllm
+
+# Start server
+vllm serve meta-llama/Llama-3.3-70B-Instruct --port 8000
+
+# Use in toolkit
+synthetic-data-kit create document.txt --provider vllm --model meta-llama/Llama-3.3-70B-Instruct
+```
+
+#### Custom API Endpoint
+```bash
+# Use any OpenAI-compatible API
+synthetic-data-kit create document.txt --provider api-endpoint --model your-model-name
+```
+
+### Model Recommendations
+
+| Use Case | Ollama Model | OpenAI Model | Performance |
+|----------|-------------|--------------|-------------|
+| Quick testing | `llama3.2:3b` | `gpt-3.5-turbo` | Fast, good quality |
+| High quality | `llama3.1:8b` | `gpt-4o` | Slower, best quality |
+| Local only | `mistral:7b` | N/A | Good balance |
+
 ## Usage
 
 ### System Check
@@ -191,6 +254,12 @@ synthetic-data-kit create ./data/parsed/ --type qa --num-pairs 50
 
 # Custom chunking
 synthetic-data-kit create document.txt --type qa --chunk-size 2000 --chunk-overlap 100
+
+# Using different providers
+synthetic-data-kit create document.txt --type qa --provider ollama --model llama3.2:3b
+synthetic-data-kit create document.txt --type qa --provider openai --model gpt-4o
+synthetic-data-kit create document.txt --type qa --provider vllm --model meta-llama/Llama-3.3-70B-Instruct
+synthetic-data-kit create document.txt --type qa --provider api-endpoint --model your-custom-model
 ```
 
 **Options:**
@@ -198,6 +267,8 @@ synthetic-data-kit create document.txt --type qa --chunk-size 2000 --chunk-overl
 - `--num-pairs`: Number of pairs to generate
 - `--chunk-size`: Text chunk size (default: 4000)
 - `--chunk-overlap`: Overlap between chunks (default: 200)
+- `--provider`: LLM provider (`ollama`, `openai`, `vllm`, `api-endpoint`)
+- `--model`: Specific model to use (provider-dependent)
 - `--verbose`: Show detailed progress
 
 ### Curate
@@ -218,6 +289,8 @@ synthetic-data-kit curate qa_pairs.json --batch-size 16
 **Options:**
 - `--threshold`: Quality threshold (0-10, default: 7.0)
 - `--batch-size`: Processing batch size (default: 8)
+- `--provider`: LLM provider (`ollama`, `openai`, `vllm`, `api-endpoint`)
+- `--model`: Specific model to use (provider-dependent)
 
 ### Save As
 

@@ -1,0 +1,96 @@
+# This file created by conda-build 24.1.2
+# meta.yaml template originally from:
+# /feedstock/recipe, last modified Tue Apr 30 13:20:34 2024
+# ------------------------------------------------
+
+package:
+  name: libffi
+  version: 3.4.4
+source:
+  patches:
+    - 0004-LIBFFI_CLOSURE.patch
+  sha256: d66c56ad259a82cf2a9dfc408b32bf5da52371500b84745f7fb8b645712df676
+  url: https://github.com/libffi/libffi/releases/download/v3.4.4/libffi-3.4.4.tar.gz
+build:
+  number: '1'
+  run_exports:
+    - libffi >=3.4,<4.0a0
+  string: h6a678d5_1
+requirements:
+  build:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - _sysroot_linux-64_curr_repodata_hack 3 haa98f57_10
+    - autoconf 2.71 pl5340h5eee18b_0
+    - automake 1.16.5 pl5340h06a4308_1
+    - binutils_impl_linux-64 2.38 h2a08ee3_1
+    - binutils_linux-64 2.38.0 hc2dff05_0
+    - gcc_impl_linux-64 11.2.0 h1234567_1
+    - gcc_linux-64 11.2.0 h5c386dc_0
+    - gdbm 1.18 hd4cb3f1_4
+    - gettext 0.21.0 h39681ba_1
+    - gxx_impl_linux-64 11.2.0 h1234567_1
+    - gxx_linux-64 11.2.0 hc2dff05_0
+    - icu 73.1 h6a678d5_0
+    - kernel-headers_linux-64 3.10.0 h57e8cba_10
+    - ld_impl_linux-64 2.38 h1181459_1
+    - libgcc-devel_linux-64 11.2.0 h1234567_1
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libstdcxx-devel_linux-64 11.2.0 h1234567_1
+    - libstdcxx-ng 11.2.0 h1234567_1
+    - libtool 2.4.6 h6a678d5_1009
+    - libxml2 2.10.4 hfdd30dd_2
+    - m4 1.4.18 h4e445db_0
+    - make 4.2.1 h1bed415_1
+    - ncurses 6.4 h6a678d5_0
+    - patch 2.7.6 h7b6447c_1001
+    - perl 5.34.0 h5eee18b_2
+    - readline 8.2 h5eee18b_0
+    - sed 4.8 h7b6447c_0
+    - sysroot_linux-64 2.17 h57e8cba_10
+    - texinfo 6.8 pl5262h7f8727e_0
+    - xz 5.4.6 h5eee18b_0
+    - zlib 1.2.13 h5eee18b_0
+  host:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libstdcxx-ng 11.2.0 h1234567_1
+  run:
+    - libgcc-ng >=11.2.0
+    - libstdcxx-ng >=11.2.0
+test:
+  requires:
+    - gcc_linux-64 11.2.0.*
+    - gxx_linux-64 11.2.0.*
+    - make
+  source_files:
+    - testsuite
+    - testsuite/libffi.bhaible
+about:
+  description: 'The libffi library provides a portable, high level programming interface
+
+    to various calling conventions. This allows a programmer to call any
+
+    function specified by a call interface description at run-time.
+
+    '
+  dev_url: https://github.com/libffi/libffi
+  doc_url: https://sourceware.org/libffi/
+  home: https://sourceware.org/libffi/
+  license: MIT
+  license_family: MIT
+  license_file: LICENSE
+  summary: A Portable Foreign Function Interface Library
+extra:
+  copy_test_source_files: true
+  final: true
+  flow_run_id: 9d85cb11-b977-4c5d-afe8-1f4416fc0019
+  recipe-maintainers:
+    - isuruf
+    - scopatz
+    - stefan-balke
+  remote_url: git@github.com:AnacondaRecipes/libffi-feedstock.git
+  sha: d17938611be89ed8fc328d1fd8701795d5b7ad9d

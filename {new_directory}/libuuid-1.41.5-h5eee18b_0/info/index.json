@@ -1,0 +1,15 @@
+{
+  "arch": "x86_64",
+  "build": "h5eee18b_0",
+  "build_number": 0,
+  "depends": [
+    "libgcc-ng >=11.2.0"
+  ],
+  "license": "BSD-3-Clause",
+  "license_family": "BSD",
+  "name": "libuuid",
+  "platform": "linux",
+  "subdir": "linux-64",
+  "timestamp": 1668082729834,
+  "version": "1.41.5"
+}

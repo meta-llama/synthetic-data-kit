@@ -1,0 +1,12 @@
+diff --git a/include/X11/Xlibint.h b/include/X11/Xlibint.h
+index 50099b4..4b388f4 100644
+--- a/include/X11/Xlibint.h
++++ b/include/X11/Xlibint.h
+@@ -45,6 +45,7 @@ from The Open Group.
+ 
+ #ifdef XTHREADS
+ #include <X11/Xthreads.h>
++#undef CreateWindow /* conda-forge: work around bug in Xwindows.h exposed here */
+ #endif
+ 
+ /* The Xlib structs are full of implicit padding to properly align members.

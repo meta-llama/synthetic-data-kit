@@ -1,0 +1,51 @@
+# This file created by conda-build 3.21.8
+# ------------------------------------------------
+
+package:
+  name: libgcc-ng
+  version: 11.2.0
+source:
+  path: /feedstock/recipe
+build:
+  binary_relocation: false
+  detect_binary_files_with_prefix: false
+  ignore_run_exports:
+    - __glibc
+    - _openmp_mutex
+  missing_dso_whitelist:
+    - '*'
+  number: 1
+  string: h1234567_1
+requirements:
+  host:
+    - _openmp_mutex 5.1 1_gnu
+    - _sysroot_linux-64_curr_repodata_hack 3 haa98f57_10
+    - kernel-headers_linux-64 3.10.0 h57e8cba_10
+    - libgomp 11.2.0 h1234567_1
+    - sysroot_linux-64 2.17 h57e8cba_10
+  run:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex
+  run_constrained:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex
+    - libgomp 11.2.0 h1234567_1
+test:
+  commands:
+    - test -f ${PREFIX}/lib/libgcc_s.so
+    - test -f ${PREFIX}/lib/libgomp.so.1
+    - test `readlink ${PREFIX}/lib/libgomp.so.1` == "libgomp.so.1.0.0"
+  requires:
+    - sysroot_linux-64
+about:
+  home: https://gcc.gnu.org/onlinedocs/gccint/Libgcc.html
+  license: GPL-3.0-only WITH GCC-exception-3.1
+  summary: The GCC low-level runtime library
+extra:
+  copy_test_source_files: true
+  final: true
+  flow_run_id: 37674e30-5ce1-4880-93d5-86ce4d2dd03e
+  recipe-maintainers:
+    - katietz
+  remote_url: git@github.com:AnacondaRecipes/gcc_toolchain-feedstock.git
+  sha: 525581cbf9edd348209e0bf8c56be267e86ee969

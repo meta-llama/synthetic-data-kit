@@ -1,0 +1,24 @@
+{
+  "arch": "x86_64",
+  "build": "hc2a1206_0",
+  "build_number": 0,
+  "channel": "https://repo.anaconda.com/pkgs/main/linux-64",
+  "constrains": [],
+  "depends": [
+    "__glibc >=2.17,<3.0.a0",
+    "libgcc-ng >=11.2.0",
+    "ncurses >=6.5,<7.0a0"
+  ],
+  "fn": "readline-8.3-hc2a1206_0.conda",
+  "license": "GPL-3.0-only",
+  "license_family": "GPL",
+  "md5": "8578e006d4ef5cb98a6cda232b3490f6",
+  "name": "readline",
+  "platform": "linux",
+  "sha256": "0a438fa74f2776bde137017d6c18214b5da65b557f6a59f877fa4e091582f789",
+  "size": 481826,
+  "subdir": "linux-64",
+  "timestamp": 1754485653000,
+  "url": "https://repo.anaconda.com/pkgs/main/linux-64/readline-8.3-hc2a1206_0.conda",
+  "version": "8.3"
+}

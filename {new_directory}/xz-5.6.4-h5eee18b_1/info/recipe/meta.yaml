@@ -1,0 +1,85 @@
+# This file created by conda-build 24.1.2
+# meta.yaml template originally from:
+# /feedstock/recipe, last modified Thu Feb 13 17:37:44 2025
+# ------------------------------------------------
+
+package:
+  name: xz
+  version: 5.6.4
+source:
+  sha256: 269e3f2e512cbd3314849982014dc199a7b2148cf5c91cedc6db629acdf5e09b
+  url: https://github.com/tukaani-project/xz/releases/download/v5.6.4/xz-5.6.4.tar.gz
+build:
+  number: '1'
+  run_exports:
+    - xz >=5.6.4,<6.0a0
+  string: h5eee18b_1
+requirements:
+  build:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - _sysroot_linux-64_curr_repodata_hack 3 haa98f57_10
+    - binutils_impl_linux-64 2.40 h5293946_0
+    - binutils_linux-64 2.40.0 hc2dff05_2
+    - cmake-no-system 3.25.3 h6a678d5_0
+    - gcc_impl_linux-64 11.2.0 h1234567_1
+    - gcc_linux-64 11.2.0 h5c386dc_2
+    - kernel-headers_linux-64 3.10.0 h57e8cba_10
+    - ld_impl_linux-64 2.40 h12ee557_0
+    - libgcc-devel_linux-64 11.2.0 h1234567_1
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libstdcxx-ng 11.2.0 h1234567_1
+    - ninja-base 1.12.1 hdb19cb5_0
+    - sysroot_linux-64 2.17 h57e8cba_10
+  host:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+  run:
+    - libgcc-ng >=11.2.0
+test:
+  commands:
+    - xz --help
+    - unxz --help
+    - lzma --help
+    - test -f ${PREFIX}/include/lzma.h
+    - test -f ${PREFIX}/lib/cmake/liblzma/liblzma-config.cmake
+    - test -f ${PREFIX}/lib/pkgconfig/liblzma.pc
+    - test -f `pkg-config --variable=libdir --dont-define-prefix liblzma`/liblzma${SHLIB_EXT}
+    - test ! -f ${PREFIX}/lib/liblzma.a
+    - test -f ${PREFIX}/lib/liblzma${SHLIB_EXT}
+    - test -f ${PREFIX}/lib/liblzma${SHLIB_EXT}.5
+    - test -f ${PREFIX}/lib/liblzma${SHLIB_EXT}.5.6.4
+    - conda inspect linkages -p $PREFIX $PKG_NAME
+  requires:
+    - pkg-config
+about:
+  description: 'XZ Utils is free general-purpose data compression software with a
+    high
+
+    compression ratio. XZ Utils were written for POSIX-like systems, but also
+
+    work on some not-so-POSIX systems.
+
+    '
+  dev_url: https://github.com/tukaani-project/xz
+  doc_url: https://tukaani.org/xz/#_documentation
+  home: https://tukaani.org/xz/
+  license: LGPL-2.1-or-later and GPL-2.0-or-later and 0BSD
+  license_family: GPL2
+  license_file: COPYING
+  summary: Data compression software with high compression ratio
+extra:
+  copy_test_source_files: true
+  final: true
+  flow_run_id: 0d664ef1-4ff8-4abb-8fe3-80024409f78c
+  recipe-maintainers:
+    - mingwandroid
+    - msarahan
+    - nehaljwani
+    - ocefpaf
+    - scopatz
+  remote_url: git@github.com:AnacondaRecipes/xz-feedstock.git
+  sha: 455f54e9b06b1d5e8333c89e46da9cdba1c3ea61

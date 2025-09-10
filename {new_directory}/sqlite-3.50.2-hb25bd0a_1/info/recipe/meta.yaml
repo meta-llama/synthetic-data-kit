@@ -1,0 +1,90 @@
+# This file created by conda-build 24.1.2
+# meta.yaml template originally from:
+# /feedstock/recipe, last modified Thu Jul 17 17:32:36 2025
+# ------------------------------------------------
+
+package:
+  name: sqlite
+  version: 3.50.2
+source:
+  patches: null
+  sha256: 84a616ffd31738e4590b65babb3a9e1ef9370f3638e36db220ee0e73f8ad2156
+  url: https://www.sqlite.org/2025/sqlite-autoconf-3500200.tar.gz
+build:
+  number: '1'
+  run_exports:
+    - sqlite >=3.50.2,<4.0a0
+  string: hb25bd0a_1
+requirements:
+  build:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - _sysroot_linux-64_curr_repodata_hack 3 haa98f57_10
+    - binutils_impl_linux-64 2.40 h5293946_0
+    - binutils_linux-64 2.40.0 hc2dff05_2
+    - gcc_impl_linux-64 11.2.0 h1234567_1
+    - gcc_linux-64 11.2.0 h5c386dc_2
+    - kernel-headers_linux-64 3.10.0 h57e8cba_10
+    - ld_impl_linux-64 2.40 h12ee557_0
+    - libgcc-devel_linux-64 11.2.0 h1234567_1
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libstdcxx-ng 11.2.0 h1234567_1
+    - make 4.2.1 h1bed415_1
+    - sysroot_linux-64 2.17 h57e8cba_10
+  host:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - ncurses 6.4 h6a678d5_0
+    - readline 8.0 h7b6447c_0
+    - zlib 1.2.13 h5eee18b_1
+  run:
+    - __glibc >=2.17,<3.0.a0
+    - libgcc-ng >=11.2.0
+    - ncurses >=6.4,<7.0a0
+    - readline >=8.0,<9.0a0
+    - zlib >=1.2.13,<1.3.0a0
+    - zlib >=1.2.13,<2.0a0
+test:
+  commands:
+    - sqlite3 --version
+    - test -f $PREFIX/bin/sqlite3
+    - test -f $PREFIX/lib/libsqlite3${SHLIB_EXT}
+    - test ! -f $PREFIX/lib/libsqlite3.a
+    - test -f $PREFIX/include/sqlite3.h
+    - test -f $PREFIX/include/sqlite3ext.h
+    - test -f $PREFIX/lib/pkgconfig/sqlite3.pc
+    - readelf -d $PREFIX/lib/libsqlite3${SHLIB_EXT} | grep SONAME
+  requires:
+    - binutils
+about:
+  description: 'SQLite is a self-contained, high-reliability, embedded, full-featured,
+
+    public-domain, SQL database engine. It is the most used database engine
+
+    in the world.
+
+    '
+  dev_url: https://sqlite.org/src/dir?ci=trunk
+  doc_url: https://www.sqlite.org/docs.html
+  home: https://www.sqlite.org/
+  license: blessing
+  license_family: Other
+  license_file: LICENSE.md
+  summary: Implements a self-contained, zero-configuration, SQL database engine
+extra:
+  copy_test_source_files: true
+  final: true
+  flow_run_id: 598fddf8-1b7b-408c-a3e6-495ac86119a1
+  recipe-maintainers:
+    - jakirkham
+    - jjhelmus
+    - mingwandroid
+    - msarahan
+    - ocefpaf
+    - snorfalorpagus
+    - xylar
+  remote_url: git@github.com:AnacondaRecipes/sqlite-feedstock.git
+  sha: ed1327734fac01064b6071338b3e662a65b4501f

@@ -1,0 +1,90 @@
+# This file created by conda-build 24.1.2
+# meta.yaml template originally from:
+# /feedstock/recipe, last modified Tue Apr 30 20:55:40 2024
+# ------------------------------------------------
+
+package:
+  name: bzip2
+  version: 1.0.8
+source:
+  patches:
+    - 0001-cross.patch
+  sha256: ab5a03176ee106d3f0fa90e381da478ddae405918153cca248e682cd0c4a2269
+  url: https://sourceware.org/pub/bzip2/bzip2-1.0.8.tar.gz
+build:
+  number: '6'
+  run_exports:
+    - bzip2 >=1.0.8,<2.0a0
+  string: h5eee18b_6
+requirements:
+  build:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - _sysroot_linux-64_curr_repodata_hack 3 haa98f57_10
+    - binutils_impl_linux-64 2.38 h2a08ee3_1
+    - binutils_linux-64 2.38.0 hc2dff05_0
+    - gcc_impl_linux-64 11.2.0 h1234567_1
+    - gcc_linux-64 11.2.0 h5c386dc_0
+    - kernel-headers_linux-64 3.10.0 h57e8cba_10
+    - ld_impl_linux-64 2.38 h1181459_1
+    - libgcc-devel_linux-64 11.2.0 h1234567_1
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libstdcxx-ng 11.2.0 h1234567_1
+    - make 4.2.1 h1bed415_1
+    - patch 2.7.6 h7b6447c_1001
+    - sysroot_linux-64 2.17 h57e8cba_10
+  host:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+  run:
+    - libgcc-ng >=11.2.0
+test:
+  commands:
+    - bzip2 --help
+    - test -f ${PREFIX}/bin/bunzip2
+    - test -f ${PREFIX}/bin/bzcat
+    - test -f ${PREFIX}/bin/bzcmp
+    - test -f ${PREFIX}/bin/bzdiff
+    - test -f ${PREFIX}/bin/bzegrep
+    - test -f ${PREFIX}/bin/bzfgrep
+    - test -f ${PREFIX}/bin/bzgrep
+    - test -f ${PREFIX}/bin/bzip2recover
+    - test -f ${PREFIX}/bin/bzip2
+    - test -f ${PREFIX}/bin/bzless
+    - test -f ${PREFIX}/bin/bzmore
+    - test -f ${PREFIX}/include/bzlib.h
+    - test -f ${PREFIX}/lib/libbz2.a
+    - test -f ${PREFIX}/lib/libbz2${SHLIB_EXT}
+about:
+  description: 'Bzip2 is a freely available high-quality data compressor. It typically
+
+    compresses files to within 10% to 15% of the best available techniques,
+
+    whilst being around twice as fast at compression and six times faster
+
+    at decompression.
+
+    '
+  dev_url: https://sourceware.org/git/?p=bzip2.git
+  doc_url: https://sourceware.org/bzip2/docs.html
+  home: https://sourceware.org/bzip2/
+  license: bzip2-1.0.8
+  license_family: BSD
+  license_file: LICENSE
+  summary: high-quality data compressor
+extra:
+  copy_test_source_files: true
+  final: true
+  flow_run_id: d98ea40d-0d6e-431e-a29d-65b4841389b5
+  recipe-maintainers:
+    - jakirkham
+    - jjhelmus
+    - jlanga
+    - mingwandroid
+    - msarahan
+    - pelson
+  remote_url: git@github.com:AnacondaRecipes/bzip2-feedstock.git
+  sha: de4f0e44ad8e6cffffb605bc99e429bcaee425b7

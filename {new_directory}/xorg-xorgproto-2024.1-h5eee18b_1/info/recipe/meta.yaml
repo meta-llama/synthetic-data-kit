@@ -1,0 +1,93 @@
+# This file created by conda-build 24.1.2
+# meta.yaml template originally from:
+# /feedstock/recipe, last modified Wed Apr 30 20:50:02 2025
+# ------------------------------------------------
+
+package:
+  name: xorg-xorgproto
+  version: '2024.1'
+source:
+  patches: null
+  sha256: 372225fd40815b8423547f5d890c5debc72e88b91088fbfb13158c20495ccb59
+  url: https://www.x.org/releases/individual/proto/xorgproto-2024.1.tar.xz
+build:
+  number: '1'
+  run_exports:
+    - xorg-xorgproto >=2024.1,<2025.0a0
+  string: h5eee18b_1
+requirements:
+  build:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - _sysroot_linux-64_curr_repodata_hack 3 haa98f57_10
+    - binutils_impl_linux-64 2.40 h5293946_0
+    - binutils_linux-64 2.40.0 hc2dff05_2
+    - gcc_impl_linux-64 11.2.0 h1234567_1
+    - gcc_linux-64 11.2.0 h5c386dc_2
+    - gnuconfig 2021.05.24 hd3eb1b0_0
+    - kernel-headers_linux-64 3.10.0 h57e8cba_10
+    - ld_impl_linux-64 2.40 h12ee557_0
+    - libgcc-devel_linux-64 11.2.0 h1234567_1
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libstdcxx-ng 11.2.0 h1234567_1
+    - make 4.2.1 h1bed415_1
+    - pkg-config 0.29.2 h1bed415_8
+    - sysroot_linux-64 2.17 h57e8cba_10
+  host:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - xorg-util-macros 1.19.0 h27cfd23_2
+  run:
+    - libgcc-ng >=11.2.0
+  run_constrained:
+    - xorg-applewmproto <0.0.0a
+    - xorg-bigreqsproto <0.0.0a
+    - xorg-compositeproto <0.0.0a
+    - xorg-damageproto <0.0.0a
+    - xorg-dmxproto <0.0.0a
+    - xorg-dpmsproto <0.0.0a
+    - xorg-dri2proto <0.0.0a
+    - xorg-dri3proto <0.0.0a
+    - xorg-fixesproto <0.0.0a
+    - xorg-fontsproto <0.0.0a
+    - xorg-glproto <0.0.0a
+    - xorg-inputproto <0.0.0a
+    - xorg-kbproto <0.0.0a
+    - xorg-presentproto <0.0.0a
+    - xorg-randrproto <0.0.0a
+    - xorg-recordproto <0.0.0a
+    - xorg-renderproto <0.0.0a
+    - xorg-resourceproto <0.0.0a
+    - xorg-scrnsaverproto <0.0.0a
+    - xorg-videoproto <0.0.0a
+    - xorg-xcmiscproto <0.0.0a
+    - xorg-xextproto <0.0.0a
+    - xorg-xf86bigfontproto <0.0.0a
+    - xorg-xf86dgaproto <0.0.0a
+    - xorg-xf86driproto <0.0.0a
+    - xorg-xf86vidmodeproto <0.0.0a
+    - xorg-xineramaproto <0.0.0a
+    - xorg-xproto <0.0.0a
+    - xorg-xwaylandproto <0.0.0a
+test:
+  commands:
+    - test -e $PREFIX/include/X11/extensions/damageproto.h
+about:
+  dev_url: https://gitlab.freedesktop.org/xorg/proto/xorgproto
+  doc_url: https://gitlab.freedesktop.org/xorg/proto/xorgproto
+  home: https://www.x.org/
+  license: MIT
+  license_family: MIT
+  license_file: licenses/
+  summary: X.org protocol headers
+extra:
+  copy_test_source_files: true
+  final: true
+  flow_run_id: af31ccde-d9c4-4092-88fc-ffbd455029a7
+  recipe-maintainers:
+    - pkgw
+  remote_url: git@github.com:AnacondaRecipes/xorg-xorgproto-feedstock.git
+  sha: edf34136111283bca6f43abd1ac347df754626ff

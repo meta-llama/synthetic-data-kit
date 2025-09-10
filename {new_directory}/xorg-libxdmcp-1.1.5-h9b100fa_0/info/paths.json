@@ -1,0 +1,37 @@
+{
+  "paths": [
+    {
+      "_path": "include/X11/Xdmcp.h",
+      "path_type": "hardlink",
+      "sha256": "7fd3eb99f92b1c566c87cab744ccbb85a4530152eeace73dbb493952a4f40477",
+      "size_in_bytes": 8535
+    },
+    {
+      "_path": "lib/libXdmcp.so",
+      "path_type": "softlink",
+      "sha256": "f2908bfed0bc8912782034b4df1ce481299733a195df4daa5fc5f642e87cd22d",
+      "size_in_bytes": 30240
+    },
+    {
+      "_path": "lib/libXdmcp.so.6",
+      "path_type": "softlink",
+      "sha256": "f2908bfed0bc8912782034b4df1ce481299733a195df4daa5fc5f642e87cd22d",
+      "size_in_bytes": 30240
+    },
+    {
+      "_path": "lib/libXdmcp.so.6.0.0",
+      "path_type": "hardlink",
+      "sha256": "f2908bfed0bc8912782034b4df1ce481299733a195df4daa5fc5f642e87cd22d",
+      "size_in_bytes": 30240
+    },
+    {
+      "_path": "lib/pkgconfig/xdmcp.pc",
+      "file_mode": "text",
+      "path_type": "hardlink",
+      "prefix_placeholder": "/croot/xorg-libxdmcp_1745992248260/_h_env_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_pla",
+      "sha256": "de13cbc0e8bb68d72dda11f9de715d8ebcee454f40a3863acacff9acee789f20",
+      "size_in_bytes": 491
+    }
+  ],
+  "paths_version": 1
+}

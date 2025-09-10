@@ -1,0 +1,56 @@
+{% set major_minor = "2.32" %}
+{% set version = major_minor + ".1" %}
+# we map 2.x version to 1.41.5+ for compatibility reason.
+# if we build libuuid as version 2.x, all older libuuid dependencies would
+# fail to resolve, but the library contains backward-compatibility.  By this
+# remapping we make use of this feature and avoid useless rebuilding/hotfixing.
+{% set compat_version = "1.41.5" %}
+
+package:
+    name: libuuid
+    version: {{ compat_version }}
+
+source:
+    fn: libuuid-{{ version }}.tar.gz
+    url: https://mirrors.edge.kernel.org/pub/linux/utils/util-linux/v{{ major_minor }}/util-linux-{{ version }}.tar.gz
+    sha256: 3bbf9f3d4a33d6653cf0f7e4fc422091b6a38c3b1195c0ee716c67148a1a7122
+
+build:
+    number: 0
+    skip: True  # [win]
+    missing_dso_whitelist:
+      - $RPATH/ld64.so.1
+    run_exports:
+        # https://abi-laboratory.pro/index.php?view=timeline&l=util-linux
+        - {{ pin_subpackage('libuuid') }}
+
+requirements:
+    build:
+        - gnuconfig  # [unix]
+        - {{ compiler('c') }}
+        - make  # [unix]
+
+test:
+    commands:
+        - test -f ${PREFIX}/lib/libuuid.a      # [unix]
+        - test -f ${PREFIX}/lib/libuuid.so     # [linux]
+        - test -f ${PREFIX}/lib/libuuid.dylib  # [osx]
+        - echo "make linter happy"
+about:
+    home: https://sourceforge.net/projects/libuuid/
+    license: BSD-3-Clause
+    license_family: BSD
+    license_file: Documentation/licenses/COPYING.BSD-3
+    summary: Portable uuid C library {{ version }} as pk-version {{ compat_version}}.
+    description: |
+      The UUID library is used to generate unique identifiers for objects that
+      may be accessible beyond the local system. This library generates UUIDs
+      compatible with those created by the Open Software Foundation (OSF)
+      Distributed Computing Environment (DCE) utility uuidgen.
+    doc_url: https://github.com/util-linux/util-linux/tree/master/libuuid/man
+    dev_url: https://github.com/util-linux/util-linux/
+
+extra:
+    recipe-maintainers:
+        - ocefpaf
+        - katietz

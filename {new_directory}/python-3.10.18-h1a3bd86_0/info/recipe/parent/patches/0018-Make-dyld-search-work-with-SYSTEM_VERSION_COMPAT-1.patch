@@ -1,0 +1,32 @@
+From 8c363a53d48ea68c9df913f344dd0b9fee34896f Mon Sep 17 00:00:00 2001
+From: Isuru Fernando <isuruf@gmail.com>
+Date: Mon, 25 Jan 2021 03:28:08 -0600
+Subject: [PATCH 18/25] Make dyld search work with SYSTEM_VERSION_COMPAT=1
+
+In macOS Big Sur, if the executable was compiled with `MACOSX_DEPLOYMENT_TARGET=10.15`
+or below, then SYSTEM_VERSION_COMPAT=1 is the default which means that Big Sur
+reports itself as 10.16 which means that `__builtin_available(macOS 11.0)` will not be triggered.
+
+This can be observed by using the python 3.9.1 universal2 installer and using it on
+x86_64 Big Sur or with Rossetta 2 on arm64 Big Sur. (Not an issue with native arm64
+as that part is compiled with `MACOSX_DEPLOYMENT_TARGET=11.0`)
+---
+ Modules/_ctypes/callproc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Modules/_ctypes/callproc.c b/Modules/_ctypes/callproc.c
+index 48694760db..e72352ffac 100644
+--- a/Modules/_ctypes/callproc.c
++++ b/Modules/_ctypes/callproc.c
+@@ -1445,7 +1445,7 @@ copy_com_pointer(PyObject *self, PyObject *args)
+ #ifdef __APPLE__
+ #ifdef HAVE_DYLD_SHARED_CACHE_CONTAINS_PATH
+ #define HAVE_DYLD_SHARED_CACHE_CONTAINS_PATH_RUNTIME \
+-    __builtin_available(macOS 11.0, iOS 14.0, tvOS 14.0, watchOS 7.0, *)
++    __builtin_available(macOS 10.16, iOS 14.0, tvOS 14.0, watchOS 7.0, *)
+ #else
+ // Support the deprecated case of compiling on an older macOS version
+ static void *libsystem_b_handle;
+-- 
+2.32.1 (Apple Git-133)
+

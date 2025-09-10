@@ -1,0 +1,77 @@
+# This file created by conda-build 24.1.2
+# meta.yaml template originally from:
+# /feedstock/recipe, last modified Mon Apr 14 19:43:29 2025
+# ------------------------------------------------
+
+package:
+  name: expat
+  version: 2.7.1
+source:
+  sha256: 45c98ae1e9b5127325d25186cf8c511fa814078e9efeae7987a574b482b79b3d
+  url: https://github.com/libexpat/libexpat/releases/download/R_2_7_1/expat-2.7.1.tar.bz2
+build:
+  number: '0'
+  run_exports:
+    - expat >=2.7.1,<3.0a0
+  string: h6a678d5_0
+requirements:
+  build:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - _sysroot_linux-64_curr_repodata_hack 3 haa98f57_10
+    - binutils_impl_linux-64 2.40 h5293946_0
+    - binutils_linux-64 2.40.0 hc2dff05_2
+    - gcc_impl_linux-64 11.2.0 h1234567_1
+    - gcc_linux-64 11.2.0 h5c386dc_2
+    - gxx_impl_linux-64 11.2.0 h1234567_1
+    - gxx_linux-64 11.2.0 hc2dff05_2
+    - kernel-headers_linux-64 3.10.0 h57e8cba_10
+    - ld_impl_linux-64 2.40 h12ee557_0
+    - libgcc-devel_linux-64 11.2.0 h1234567_1
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libstdcxx-devel_linux-64 11.2.0 h1234567_1
+    - libstdcxx-ng 11.2.0 h1234567_1
+    - libtool 2.4.7 h6a678d5_0
+    - make 4.2.1 h1bed415_1
+    - sysroot_linux-64 2.17 h57e8cba_10
+  host:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libstdcxx-ng 11.2.0 h1234567_1
+  run:
+    - libgcc-ng >=11.2.0
+    - libstdcxx-ng >=11.2.0
+test:
+  commands:
+    - xmlwf -h
+about:
+  description: 'Expat is a stream-oriented XML parser library written in C.
+
+    Expat excels with files too large to fit RAM, and where performance
+
+    and flexibility are crucial.
+
+    '
+  dev_url: https://github.com/libexpat/libexpat
+  doc_url: https://libexpat.github.io/doc/
+  home: https://libexpat.github.io
+  license: MIT
+  license_family: MIT
+  license_file: COPYING
+  summary: Expat XML parser library in C
+extra:
+  copy_test_source_files: true
+  final: true
+  flow_run_id: e87c6467-4d4d-4c6c-bd72-781b5822d2c6
+  recipe-maintainers:
+    - kwilcox
+    - mingwandroid
+    - msarahan
+    - ocefpaf
+    - pelson
+    - scopatz
+  remote_url: git@github.com:AnacondaRecipes/expat-feedstock.git
+  sha: 940d4c718f0f9ef985be1361a366fe750dfc03a8

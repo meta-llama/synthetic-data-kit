@@ -1,0 +1,18 @@
+{
+  "arch": "x86_64",
+  "build": "h9b100fa_0",
+  "build_number": 0,
+  "depends": [
+    "libgcc-ng >=11.2.0",
+    "pthread-stubs",
+    "xorg-libxau >=1.0.12,<2.0a0",
+    "xorg-libxdmcp >=1.1.5,<2.0a0"
+  ],
+  "license": "MIT",
+  "license_family": "MIT",
+  "name": "libxcb",
+  "platform": "linux",
+  "subdir": "linux-64",
+  "timestamp": 1746022211479,
+  "version": "1.17.0"
+}

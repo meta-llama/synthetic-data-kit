@@ -1,0 +1,90 @@
+{% set xorg_name = "libX11" %}
+{% set xorg_category = "lib" %}
+{% set name = "xorg-" ~ xorg_name %}
+{% set version = "1.8.12" %}
+{% set sha256 = "fa026f9bb0124f4d6c808f9aef4057aad65e7b35d8ff43951cef0abe06bb9a9a" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://www.x.org/releases/individual/{{ xorg_category }}/{{ xorg_name }}-{{ version }}.tar.xz
+  sha256: {{ sha256 }}
+  patches:
+    # https://gitlab.freedesktop.org/xorg/proto/xorgproto/-/issues/44
+    - windows_compat.patch        # [win]
+    - autoconf-269-compat.patch   # [win]
+
+build:
+  number: 1
+  # configure.ac:3: error: Autoconf version 2.70 or higher is required
+  # our latest m2-autoconf is 2.69.
+  # xorg-libxdmcp and libxcb aren't available on Windows because their dependencies clash with m2/msys2 and mingw64/ucrt64 toolchains.
+  skip: true  # [win]
+  run_exports:
+    - {{ pin_subpackage(name|lower) }}
+  detect_binary_files_with_prefix: true
+  always_include_files:
+    # Workaround for dummy X11 headers in OSX `tk` package.
+    - include/X11/cursorfont.h
+    - include/X11/ImUtil.h
+    - include/X11/Xcms.h
+    - include/X11/XKBlib.h
+    - include/X11/XlibConf.h
+    - include/X11/Xlib.h
+    - include/X11/Xlibint.h
+    - include/X11/Xlib-xcb.h
+    - include/X11/Xlocale.h
+    - include/X11/Xregion.h
+    - include/X11/Xresource.h
+    - include/X11/Xutil.h
+
+requirements:
+  build:
+    - m2-patch                      # [win]
+    - m2-autoconf                   # [win]
+    - m2-automake{{ am_version }}   # [win]
+    - m2-libtool                    # [win]
+    - pkg-config                    # [unix]
+    - m2-pkg-config                 # [win]
+    - gnuconfig                     # [unix]
+    - m2-base                       # [win]
+    - make                          # [unix]
+    - m2-make                       # [win]
+    - {{ compiler('c') }}           # [unix]
+    - {{ compiler('m2w64_c') }}     # [win]
+    - autoconf                      # [unix]
+    - automake                      # [unix]
+    - gettext                       # [unix]
+    - libtool                       # [unix]
+    - sed                           # [unix]
+  host:
+    - libxcb >=1.11.1
+    - pthread-stubs
+    - xorg-util-macros
+    - xorg-xorgproto
+    - xorg-xtrans
+  run:
+    - xorg-xorgproto >=2024.1
+
+test:
+  commands:
+    {% set lib_idents = [ "X11", "X11-xcb" ] %}
+    {% for lib_ident in lib_idents %}
+    - test -f $PREFIX/lib/lib{{ lib_ident }}.dylib  # [osx]
+    - test -f $PREFIX/lib/lib{{ lib_ident }}.so  # [linux]
+    {% endfor %}
+
+about:
+  home: https://www.x.org/
+  dev_url: https://gitlab.freedesktop.org/xorg/lib/libx11
+  doc_url: https://www.x.org/releases/current/doc/libX11/libX11/libX11.html
+  license: MIT
+  license_family: MIT
+  license_file: COPYING
+  summary: The main client library for X Windows version 11.
+
+extra:
+  recipe-maintainers:
+    - pkgw

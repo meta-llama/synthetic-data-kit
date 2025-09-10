@@ -1,0 +1,528 @@
+{% set build_num = gcc_version_build_number %}
+
+# You can use this to allow investigating errors in more recent glibcs than
+# you have RPMs to make the sysroot packages from.
+{% set hack_sysroot_ver = False %}
+# {% set hack_sysroot_ver = '2.17' %}
+
+{% set build_string = 'h' + PKG_HASH + '_' + PKG_BUILDNUM %}
+
+package:
+  name: gcc-compiler
+  version: {{ gcc_version }}
+
+source:
+  path: .
+
+build:
+  merge_build_host: False
+  # defined in conda_build_config.yaml so that we can keep it associated
+  # with a particular GCC version number
+  number: {{ build_num | default(0) }}
+  string: {{ build_string }}
+  skip: True  # [not linux]
+  # The CentOS7 system libraries should be used for everything here.
+  # We do not have CDT packages yet, nor compilers that would use them!
+  missing_dso_whitelist:
+    - "*"
+
+requirements:
+  build:
+    # due a conda-build issue compiler-activation can't be used as
+    # it leads to direct conflicts ...
+    # - {{ compiler('c') }}
+    # - {{ compiler('cxx') }}
+    # instead we install this dependency during build
+    - llvm-tools  # [osx]
+    - make
+    - bash        # [not (ppc64le or s390x or aarch64)]
+    - autoconf 
+    - automake
+    - libtool
+    - bison
+    - flex
+    - sed
+    - patch
+    - gawk
+    - m4
+    - help2man
+    - texinfo
+    - git
+  # Need something here so that build does not get installed to a long prefix
+  # as that breaks on some systems.
+  host:
+    - bison
+
+outputs:
+  - name: libgcc-devel_{{ target_platform }}
+    script: install_scripts/install-libgcc-devel.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      detect_binary_files_with_prefix: False
+      binary_relocation: False
+      missing_dso_whitelist:
+        - "*"
+    requirements:
+      host:
+        - sysroot_{{ target_platform }}
+    test:
+      commands:
+        - test -f ${PREFIX}/lib/gcc/{{ cpu_arch }}-conda-linux-gnu/{{ gcc_version }}/crtbegin.o
+    about:
+      summary: The GNU C development libraries and object files
+      home: https://gcc.gnu.org/
+      license: GPL-3.0-only WITH GCC-exception-3.1
+
+  - name: libstdcxx-devel_{{ target_platform }}
+    script: install_scripts/install-libstdc++-devel.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      detect_binary_files_with_prefix: False
+      binary_relocation: False
+      missing_dso_whitelist:
+        - "*"
+    test:
+      commands:
+        - test -f ${PREFIX}/{{ cpu_arch }}-conda-linux-gnu/lib64/libstdc++.a
+    about:
+      summary: The GNU C++ headers and development libraries
+      home: https://gcc.gnu.org/
+      license: GPL-3.0-only WITH GCC-exception-3.1
+
+  - name: gcc_impl_{{ target_platform }}
+    script: install_scripts/install-gcc.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      detect_binary_files_with_prefix: False
+      binary_relocation:
+        - 'bin/*'
+        - 'lib/*.so*'
+        - 'libexec/**/*.so*'
+        - 'libexec/**/cc1*'
+        - 'libexec/**/collect2'
+        - 'libexec/**/gcc'
+        - 'libexec/**/lto*'
+        - 'libexec/**/plugin/gengtype'
+      missing_dso_whitelist:
+        - '*'
+      runpath_whitelist:
+        - "x86_64-conda-linux-gnu/sysroot/lib/libpthread-2.12.2.so"
+        - "aarch64-conda-linux-gnu/sysroot/lib64/libpthread-2.26.so"
+      ignore_run_exports:
+        - __glibc
+        - libgomp
+        - sysroot_{{ target_platform }}
+    requirements:
+      host:
+        - {{ pin_subpackage("libgomp", exact=True) }}
+        - {{ pin_subpackage("libstdcxx-ng", exact=True) }}
+        - {{ pin_subpackage("libgcc-ng", exact=True) }}
+        - {{ pin_subpackage("libgfortran" ~ libgfortran_soname) }}
+        - sysroot_{{ target_platform }} {{ conda_glibc_ver }}
+      run:
+        - binutils_impl_{{ target_platform }} >=2.38
+        - {{ pin_subpackage("libgcc-devel_" ~ target_platform, exact=True) }}
+        # libstdcxx-ng is a runtime dep of gcc because LTO requires it.
+        - {{ pin_subpackage("libstdcxx-ng", max_pin=None) }}
+        - {{ pin_subpackage("libgcc-ng", max_pin=None) }}
+        - {{ pin_subpackage("libgomp", max_pin=None) }}
+        - sysroot_{{ target_platform }}
+        - libstdcxx-ng >=4.9
+        - libgcc-ng >=4.9
+    run_exports:
+      # impose this requirement across the build/host boundary
+      strong:
+        - libgcc-ng >={{ gcc_version }}
+    test:
+      requires:
+{% if hack_sysroot_ver %}
+        - sysroot_{{ target_platform }} {{ hack_sysroot_ver }}.*
+{% else %}
+        - sysroot_{{ target_platform }} {{ conda_glibc_ver }}.*
+{% endif %}
+      files:
+        - tests
+      commands:
+        - echo {{ target_platform }}
+        - echo {{ conda_glibc_ver }}
+        - echo conda
+        - echo {{ kernel_version }}
+        - test -f ${PREFIX}/{{ cpu_arch }}-conda-linux-gnu/sysroot/lib/libgomp.so
+        - test `readlink ${PREFIX}/{{ cpu_arch }}-conda-linux-gnu/sysroot/lib/libgomp.so` == "../../../lib/libgomp.so"
+        - test `readlink ${PREFIX}/lib/libgomp.so` == "libgomp.so.1.0.0"
+        - test -f ${PREFIX}/bin/{{ cpu_arch }}-conda_cos7-linux-gnu-gcc
+        - CC=$(${PREFIX}/bin/*-gcc -dumpmachine)-gcc
+        - ${CC} -Wall tests/aligned_alloc.c -c -o c_aligned.o -v
+        - ${CC} -Wall c_aligned.o -o c_aligned -v && ./c_aligned
+    about:
+      summary: GNU C Compiler
+      home: https://gcc.gnu.org/
+      license: GPL-3.0-only WITH GCC-exception-3.1
+
+  - name: gxx_impl_{{ target_platform }}
+    script: install_scripts/install-g++.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      detect_binary_files_with_prefix: False
+      binary_relocation:
+        - 'bin/*'
+        - 'lib/*.so'
+        - 'libexec/**/*.so*'
+        - 'libexec/**/cc1*'
+      missing_dso_whitelist:
+        - "*"
+      ignore_run_exports:
+        - __glibc
+        - sysroot_{{ target_platform }}
+    requirements:
+      host:
+        # For cpp and crt{i,n}.o
+        - {{ pin_subpackage("gcc_impl_" ~ target_platform, exact=True) }}
+      run:
+        # For cpp and crt{i,n}.o
+        - {{ pin_subpackage("gcc_impl_" ~ target_platform, exact=True) }}
+        # not needed due to pinning above but marks this build as using the new sysroots
+        - sysroot_{{ target_platform }}
+        - {{ pin_subpackage("libstdcxx-devel_" ~ target_platform, exact=True) }}
+    run_exports:
+      # impose this requirement across the build/host boundary
+      strong:
+        - libstdcxx-ng >={{ gcc_version }}
+    test:
+      requires:
+{% if hack_sysroot_ver %}
+        - sysroot_{{ target_platform }} {{ hack_sysroot_ver }}.*
+{% else %}
+        - sysroot_{{ target_platform }} {{ conda_glibc_ver }}.*
+{% endif %}
+      files:
+        - tests
+      commands:
+        - test -f ${PREFIX}/bin/{{ cpu_arch }}-conda_cos7-linux-gnu-g++
+        - test -f ${PREFIX}/bin/{{ cpu_arch }}-conda-linux-gnu-g++
+        - CXX=$(${PREFIX}/bin/*-gcc -dumpmachine)-g++
+        - ${CXX} -Wall tests/aligned_alloc.cpp -c -o cpp_aligned.o --std=c++17
+        - ${CXX} -Wall cpp_aligned.o -o cpp_aligned --std=c++17 && ./cpp_aligned
+    about:
+      summary: GNU C++ Compiler
+      home: https://gcc.gnu.org/
+      license: GPL-3.0-only WITH GCC-exception-3.1
+
+  - name: gfortran_impl_{{ target_platform }}
+    script: install_scripts/install-gfortran.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      detect_binary_files_with_prefix: False
+      binary_relocation:
+        - 'bin/*'
+        - 'lib/*.so'
+        - 'libexec/**/*.so*'
+        - 'libexec/**/f951'
+      missing_dso_whitelist:
+        - "*"
+      ignore_run_exports:
+        - __glibc
+        - sysroot_{{ target_platform }}
+    requirements:
+      build:
+        # For cpp and crt{i,n}.o
+        - {{ pin_subpackage("gcc_impl_" ~ target_platform, exact=True) }}
+      host:
+        - {{ pin_subpackage("gcc_impl_" ~ target_platform, exact=True) }}
+        # not needed due to pinning above but marks this build as using the new sysroots
+        - sysroot_{{ target_platform }}
+      run:
+        # For cpp and crt{i,n}.o
+        - gcc_impl_{{ target_platform }} >={{ gcc_version }}
+        - {{ pin_subpackage("libgfortran" ~ libgfortran_soname) }}
+        - {{ pin_subpackage("libgcc-ng", max_pin=None) }}
+        - sysroot_{{ target_platform }}
+        - libgcc-ng >=4.9
+        - libstdcxx-ng >=4.9
+    run_exports:
+      # impose this requirement across the build/host boundary
+      strong:
+        - libgfortran{{ libgfortran_soname }} {{ gcc_version }}.*
+        - libgcc-ng >={{ gcc_version }}
+    test:
+      requires:
+        - cmake
+{% if hack_sysroot_ver %}
+        - sysroot_{{ target_platform }} {{ hack_sysroot_ver }}.*
+{% else %}
+        - sysroot_{{ target_platform }} {{ conda_glibc_ver }}.*
+{% endif %}
+      commands:
+        - test -f ${PREFIX}/bin/{{ cpu_arch }}-conda_cos7-linux-gnu-gfortran
+        - test -f ${PREFIX}/bin/{{ cpu_arch }}-conda-linux-gnu-gfortran
+        - find $PREFIX/lib -iname omp_lib.mod | grep '.'
+        - find $PREFIX/lib -iname omp_lib.h | grep '.'
+        - pushd tests/fortomp || exit 1
+        -   sh test_fort.sh  || true
+        - popd
+      files:
+        - tests/fortomp/*
+    about:
+      summary: GNU Fortran Compiler
+      home: https://gcc.gnu.org/
+      license: GPL-3.0-only WITH GCC-exception-3.1
+
+  - name: libstdcxx-ng
+    target: {{ target_platform }}
+    script: install_scripts/install-libstdc++.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      detect_binary_files_with_prefix: False
+      binary_relocation: False
+      missing_dso_whitelist:
+        - "*"
+      ignore_run_exports:
+        - __glibc
+    requirements:
+      host:
+        - sysroot_{{ target_platform }}
+    test:
+      commands:
+        - test -f ${PREFIX}/lib/libstdc++.so
+    about:
+      summary: The GNU C++ Runtime Library
+      home: https://gcc.gnu.org/
+      license: GPL-3.0-only WITH GCC-exception-3.1
+
+  - name: libgcc-ng
+    target: {{ target_platform }}
+    script: install_scripts/install-libgcc-no-gomp.sh
+    requirements:
+      host:
+        - {{ pin_subpackage("libgomp", exact=True) }}
+        - {{ pin_subpackage('_openmp_mutex', exact=True) }}
+        - sysroot_{{ target_platform }}
+      run:
+        - _libgcc_mutex {{ _libgcc_mutex }}
+        - _openmp_mutex
+      run_constrained:
+        - {{ pin_subpackage("libgomp", exact=True) }}
+        - _libgcc_mutex {{ _libgcc_mutex }}
+        - _openmp_mutex
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      detect_binary_files_with_prefix: False
+      binary_relocation: False
+      missing_dso_whitelist:
+        - "*"
+      ignore_run_exports:
+        - __glibc
+        - _openmp_mutex
+    test:
+      requires:
+        - sysroot_{{ target_platform }}
+      commands:
+        - test -f ${PREFIX}/lib/libgcc_s.so
+        - test -f ${PREFIX}/lib/libgomp.so.{{ libgomp_ver[0:1] }}
+        - test `readlink ${PREFIX}/lib/libgomp.so.{{ libgomp_ver[0:1] }}` == "libgomp.so.{{ libgomp_ver }}"
+    about:
+      summary: The GCC low-level runtime library
+      home: https://gcc.gnu.org/onlinedocs/gccint/Libgcc.html
+      license: GPL-3.0-only WITH GCC-exception-3.1
+
+  - name: libgomp
+    target: {{ target_platform }}
+    script: install_scripts/install-libgomp.sh
+    requirements:
+      host:
+        - sysroot_{{ target_platform }}
+      run:
+        - _libgcc_mutex {{ _libgcc_mutex }}
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      detect_binary_files_with_prefix: False
+      binary_relocation: False
+      missing_dso_whitelist:
+        - "*"
+      run_exports:
+        strong:
+          - {{ pin_subpackage("_openmp_mutex", max_pin=None) }}
+      ignore_run_exports:
+        - __glibc
+    test:
+      requires:
+        - sysroot_{{ target_platform }}
+      commands:
+        - test -f ${PREFIX}/lib/libgomp.so.{{ libgomp_ver }}
+        - test ! -f ${PREFIX}/lib/libgomp.so.{{ libgomp_ver[0:1] }}
+    about:
+      summary: The GCC OpenMP implementation.
+      home: https://gcc.gnu.org/onlinedocs/gccint/Libgcc.html
+      license: GPL-3.0-only WITH GCC-exception-3.1
+
+  - name: _openmp_mutex
+    script: install_scripts/install-openmp_impl.sh
+    version: {{ openmp_ver }}
+    requirements:
+      run:
+        - _libgcc_mutex {{ _libgcc_mutex }}
+        - libgomp >=7.5.0
+      run_constrained:
+        # conflict with previous name
+        - openmp_impl 9999
+    build:
+      string: 1_gnu
+      run_exports:
+        strong:
+          - {{ pin_subpackage("_openmp_mutex", max_pin=None) }}
+    test:
+      commands:
+        - test -f ${PREFIX}/lib/libgomp.so.{{ libgomp_ver[0:1] }}
+        - test `readlink ${PREFIX}/lib/libgomp.so.{{ libgomp_ver[0:1] }}` == "libgomp.so.{{ libgomp_ver }}"
+    about:
+      summary: OpenMP Implementation Mutex
+      license: BSD-3-Clause
+      license_file: ../LICENSE
+      home: https://github.com/AnacondaRecipes/gcc-compiler-feedstock
+
+  - name: libgfortran-ng
+    target: {{ target_platform }}
+    build:
+    requirements:
+      run:
+        - libgfortran{{ libgfortran_soname }} {{ gcc_version }}.*
+    test:
+      commands:
+        - test -f ${PREFIX}/lib/libgfortran.so
+    about:
+      summary: The GNU Fortran Runtime Library
+      home: https://gcc.gnu.org/
+      license: GPL-3.0-only WITH GCC-exception-3.1
+
+  - name: libgfortran{{ libgfortran_soname }}
+    target: {{ target_platform }}
+    script: install_scripts/install-libgfortran.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      detect_binary_files_with_prefix: False
+      binary_relocation: False
+      missing_dso_whitelist:
+        - "*"
+      ignore_run_exports:
+        - __glibc
+    requirements:
+      host:
+        - sysroot_{{ target_platform }}
+      run_constrained:
+        - libgfortran-ng {{ gcc_version }} *_{{ build_num | default(0) }}
+    test:
+      commands:
+        - test -f ${PREFIX}/lib/libgfortran.so
+    about:
+      summary: The GNU Fortran Runtime Library
+      home: https://gcc.gnu.org/
+      license: GPL-3.0-only WITH GCC-exception-3.1
+
+  {% if gdb_version is defined %}
+  - name: gdb_{{ target_platform }}
+    target: {{ target_platform }}
+    version: {{ gdb_version }}
+    script: install_scripts/install-gdb.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      missing_dso_whitelist:
+        - "*"
+    about:
+      summary: The GNU Project Debugger
+      home: https://www.gnu.org/software/gdb/
+      license: GPL
+  {% endif %}
+
+  {% if gdb_server_version is defined %}
+  - name: gdb_server_{{ target_platform }}
+    target: {{ target_platform }}
+    version: {{ gdb_server_version }}
+    script: install_scripts/install-gdb-server.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      missing_dso_whitelist:
+        - "*"
+    about:
+      summary: The GNU Project Debugger
+      home: https://www.gnu.org/software/gdb/
+      license: GPL
+  {% endif %}
+
+  {% if ltrace_version is defined %}
+  - name: ltrace_{{ target_platform }}
+    target: {{ target_platform }}
+    version: {{ ltrace_version }}
+    script: install_scripts/install-ltrace.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      missing_dso_whitelist:
+        - "*"
+    about:
+      summary: Ltrace is a debugging tool for recording library calls, and signals
+      home: https://alioth.debian.org/projects/ltrace/
+      license: GPL
+  {% endif %}
+
+  {% if strace_version is defined %}
+  - name: strace_{{ target_platform }}
+    target: {{ target_platform }}
+    script: install_scripts/install-strace.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      missing_dso_whitelist:
+        - "*"
+    about:
+      summary: Strace is a linux diagnostic, and debugging utility with cli
+      home: https://strace.io
+      license: GPL
+  {% endif %}
+
+  {% if duma_version is defined %}
+  - name: duma_{{ target_platform }}
+    target: {{ target_platform }}
+    version: {{ duma_version }}
+    script: install_scripts/install-duma.sh
+    build:
+      number: {{ build_num }}
+      string: {{ build_string }}
+      detect_binary_files_with_prefix: False
+      binary_relocation:
+        - 'bin/*'
+        - 'lib/*.so*'
+        - 'libexec/**/*.so*'
+      missing_dso_whitelist:
+        - "*"
+    about:
+      summary: DUMA is an open-source library to detect buffer overruns and under-runs in C and C++ programs.
+      home: http://duma.sourceforge.net/
+      license: GPL
+  {% endif %}
+
+# make the linter happy
+about:
+  summary: GNU Compiler Collection
+  home: https://gcc.gnu.org/
+  license: GPL-3.0-only WITH GCC-exception-3.1
+  license_file:
+    - gcc/COPYING
+    - gcc/COPYING.lib
+    - gcc/COPYING.RUNTIME
+    - gcc/COPYING3
+    - COPYING3.lib
+
+extra:
+  recipe-maintainers:
+    - katietz

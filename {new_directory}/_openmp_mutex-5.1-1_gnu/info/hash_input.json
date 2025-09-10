@@ -1,0 +1,7 @@
+{
+  "channel_targets": "defaults",
+  "libgomp_ver": "1.0.0",
+  "openmp_ver": "5.1",
+  "target_platform": "linux-64",
+  "_libgcc_mutex": "0.1 main"
+}

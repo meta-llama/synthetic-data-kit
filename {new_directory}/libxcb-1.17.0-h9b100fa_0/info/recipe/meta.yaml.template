@@ -1,0 +1,104 @@
+{% set xorg_name = "libxcb" %}
+{% set xorg_category = "lib" %}
+{% set name = "libxcb" %}
+{% set version = "1.17.0" %}
+{% set sha256 = "2c69287424c9e2128cb47ffe92171e10417041ec2963bceafb65cb3fcf8f0b85" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  url: https://xorg.freedesktop.org/archive/individual/{{ xorg_category }}/{{ xorg_name }}-{{ version }}.tar.gz
+  sha256: {{ sha256 }}
+  patches:
+    - windows.patch  # [win]
+
+build:
+  number: 0
+  # xorg-libxdmcp isn't available on Windows because its dependencies clash with m2/msys2 and mingw64/ucrt64 toolchains.
+  skip: true  # [win]
+  detect_binary_files_with_prefix: true
+  run_exports:
+    - {{ pin_subpackage('libxcb', max_pin='x') }}
+
+requirements:
+  build:
+    - m2-patch                      # [win]
+    - m2-autoconf                   # [win]
+    - m2-automake{{ am_version }}   # [win]
+    - m2-libtool                    # [win]
+    - pkg-config                    # [unix]
+    - m2-pkg-config                 # [win]
+    - gnuconfig                     # [unix]
+    - m2-base                       # [win]
+    - make                          # [unix]
+    - m2-make                       # [win]
+    - {{ compiler('c') }}           # [unix]
+    - {{ compiler('m2w64_c') }}     # [win]
+    - autoconf                      # [unix]
+    - automake                      # [unix]
+    - gettext                       # [unix]
+    - libtool                       # [unix]
+    - python  # [build_platform != target_platform]
+  host:
+    - pthread-stubs
+    - xorg-libxau
+    - xorg-libxdmcp
+    - xorg-util-macros
+    - xcb-proto {{ version }}
+    - xorg-xorgproto
+  run:
+    - pthread-stubs
+    - xorg-libxau
+    - xorg-libxdmcp
+
+test:
+  commands:
+    {% set lib_idents = [
+      "xcb",
+      "xcb-composite",
+      "xcb-damage",
+      "xcb-dpms",
+      "xcb-dri2",
+      "xcb-glx",
+      "xcb-present",
+      "xcb-randr",
+      "xcb-record",
+      "xcb-res",
+      "xcb-screensaver",
+      "xcb-shape",
+      "xcb-shm",
+      "xcb-sync",
+      "xcb-xf86dri",
+      "xcb-xfixes",
+      "xcb-xinerama",
+      "xcb-xkb",
+      "xcb-xtest",
+      "xcb-xv",
+      "xcb-xvmc",
+    ] %}
+    {% set lib_idents = lib_idents + ['xcb-dri3', 'xcb-render', 'xcb-xinput'] %}  # [not win]
+    {% for lib_ident in lib_idents %}
+    - test -f $PREFIX/lib/lib{{ lib_ident }}.dylib  # [osx]
+    - test -f $PREFIX/lib/lib{{ lib_ident }}.so  # [linux]
+    {% endfor %}
+
+  # Check downstream packages (if needed): 
+  # gst-plugins-base, cairo, libxkbcommon, freeglut, qtbase, qtwebengine, 
+  # nsight-compute, xcb-util-cursor, qt-webengine, pyside6, r-cairo, r-tkrplot, r-gdtools
+
+
+about:
+  home: https://xcb.freedesktop.org/
+  dev_url: https://gitlab.freedesktop.org/xorg/lib/libxcb
+  doc_url: https://xcb.freedesktop.org/XcbApi/
+  license: MIT
+  license_family: MIT
+  license_file: COPYING
+  summary: "This is the C-language Binding (XCB) package to the X Window System protocol"
+
+extra:
+  recipe-maintainers:
+    - ccordoba12
+    - pkgw

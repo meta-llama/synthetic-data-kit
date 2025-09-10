@@ -1,0 +1,15 @@
+--- configure.ac.orig	2017-02-04 11:40:14.506284882 -0500
++++ configure.ac	2017-02-04 11:40:24.483325182 -0500
+@@ -55,6 +55,12 @@
+ # Checks for libraries.
+ AC_SEARCH_LIBS([recvfrom],[socket])
+ 
++case $host_os in
++        *mingw*|*msys*)
++                AC_CHECK_LIB([ws2_32],[main])
++                ;;
++esac
++
+ # Checks for library functions.
+ AC_CHECK_LIB([bsd], [arc4random_buf])
+ AC_CHECK_FUNCS([srand48 lrand48 arc4random_buf])

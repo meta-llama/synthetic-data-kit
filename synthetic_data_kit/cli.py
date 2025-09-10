@@ -367,7 +367,7 @@ def create(
         None, "--api-base", help="VLLM API base URL"
     ),
     model: Optional[str] = typer.Option(
-        None, "--model", "-m", help="Model to use"
+        None, "--model", "-m", help="Model [llama-3.3-70b, gpt-4o, llama-4-maverick, llama3.2-3b]"
     ),
     num_pairs: Optional[int] = typer.Option(
         None, "--num-pairs", "-n", help="Target number of QA pairs or CoT examples to generate"
@@ -383,6 +383,9 @@ def create(
     ),
     preview: bool = typer.Option(
         False, "--preview", help="Preview files to be processed without actually processing them"
+    ),
+    provider: Optional[str] = typer.Option(
+        None, "--provider", help="LLM provider to use ('vllm', 'api-endpoint', 'openai', 'ollama')"
     ),
 ):
     """
@@ -408,8 +411,8 @@ def create(
     from synthetic_data_kit.core.create import process_file
     from synthetic_data_kit.utils.directory_processor import is_directory, process_directory_create, get_directory_stats, CREATE_EXTENSIONS
     
-    # Check the LLM provider from config
-    provider = get_llm_provider(ctx.config)
+    # Check the LLM provider from CLI option or config
+    provider = provider or get_llm_provider(ctx.config)
     console.print(f"🔗 Using {provider} provider", style="green")
     
     if provider == "api-endpoint":
@@ -418,7 +421,32 @@ def create(
         api_base = api_base or api_endpoint_config.get("api_base")
         model = model or api_endpoint_config.get("model")
         # No server check needed for API endpoint
-    else:
+    elif provider == "openai":
+        # Use OpenAI config
+        from synthetic_data_kit.utils.config import get_openai_direct_config
+        openai_config = get_openai_direct_config(ctx.config)
+        api_base = api_base or openai_config.get("api_base")
+        model = model or openai_config.get("model")
+        # No server check needed for OpenAI
+    elif provider == "ollama":
+        # Use Ollama config
+        from synthetic_data_kit.utils.config import get_ollama_config
+        ollama_config = get_ollama_config(ctx.config)
+        api_base = api_base or ollama_config.get("api_base")
+        model = model or ollama_config.get("model")
+        
+        # Check Ollama server availability
+        try:
+            response = requests.get(f"{api_base}/api/tags", timeout=2)
+            if response.status_code != 200:
+                console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+                console.print("Please start the Ollama server", style="yellow")
+                return 1
+        except requests.exceptions.RequestException:
+            console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+            console.print("Please start the Ollama server", style="yellow")
+            return 1
+    elif provider == "vllm":
         # Use vLLM config
         vllm_config = get_vllm_config(ctx.config)
         api_base = api_base or vllm_config.get("api_base")
@@ -437,6 +465,10 @@ def create(
             console.print("Please start the VLLM server with:", style="yellow")
             console.print(f"vllm serve {model}", style="bold blue")
             return 1
+    else:
+        console.print(f"❌ Error: Unknown provider '{provider}'", style="red")
+        console.print("Supported providers: 'vllm', 'api-endpoint', 'openai', 'ollama'", style="yellow")
+        return 1
     
     # Get output directory from args, then config, then default
     if output_dir is None:
@@ -545,13 +577,16 @@ def curate(
         None, "--api-base", help="VLLM API base URL"
     ),
     model: Optional[str] = typer.Option(
-        None, "--model", "-m", help="Model to use"
+        None, "--model", "-m", help="Model [llama-3.3-70b, gpt-4o, llama-4-maverick, llama3.2-3b]"
     ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed output"
     ),
     preview: bool = typer.Option(
         False, "--preview", help="Preview files to be processed without actually processing them"
+    ),
+    provider: Optional[str] = typer.Option(
+        None, "--provider", help="LLM provider to use ('vllm', 'api-endpoint', 'openai', 'ollama')"
     ),
 ):
     """
@@ -567,8 +602,8 @@ def curate(
     from synthetic_data_kit.core.curate import curate_qa_pairs
     from synthetic_data_kit.utils.directory_processor import is_directory, process_directory_curate, get_directory_stats, CURATE_EXTENSIONS
     
-    # Check the LLM provider from config
-    provider = get_llm_provider(ctx.config)
+    # Check the LLM provider from CLI option or config
+    provider = provider or get_llm_provider(ctx.config)
     
     console.print(f"🔗 Using {provider} provider", style="green")
     
@@ -578,7 +613,32 @@ def curate(
         api_base = api_base or api_endpoint_config.get("api_base")
         model = model or api_endpoint_config.get("model")
         # No server check needed for API endpoint
-    else:
+    elif provider == "openai":
+        # Use OpenAI config
+        from synthetic_data_kit.utils.config import get_openai_direct_config
+        openai_config = get_openai_direct_config(ctx.config)
+        api_base = api_base or openai_config.get("api_base")
+        model = model or openai_config.get("model")
+        # No server check needed for OpenAI
+    elif provider == "ollama":
+        # Use Ollama config
+        from synthetic_data_kit.utils.config import get_ollama_config
+        ollama_config = get_ollama_config(ctx.config)
+        api_base = api_base or ollama_config.get("api_base")
+        model = model or ollama_config.get("model")
+        
+        # Check Ollama server availability
+        try:
+            response = requests.get(f"{api_base}/api/tags", timeout=2)
+            if response.status_code != 200:
+                console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+                console.print("Please start the Ollama server", style="yellow")
+                return 1
+        except requests.exceptions.RequestException:
+            console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+            console.print("Please start the Ollama server", style="yellow")
+            return 1
+    elif provider == "vllm":
         # Use vLLM config
         vllm_config = get_vllm_config(ctx.config)
         api_base = api_base or vllm_config.get("api_base")
@@ -597,6 +657,10 @@ def curate(
             console.print("Please start the VLLM server with:", style="yellow")
             console.print(f"vllm serve {model}", style="bold blue")
             return 1
+    else:
+        console.print(f"❌ Error: Unknown provider '{provider}'", style="red")
+        console.print("Supported providers: 'vllm', 'api-endpoint', 'openai', 'ollama'", style="yellow")
+        return 1
     
     try:
         # Check if input is a directory

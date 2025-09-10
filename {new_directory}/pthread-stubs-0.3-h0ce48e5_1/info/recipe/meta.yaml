@@ -1,0 +1,40 @@
+# This file created by conda-build 3.0.15+50.g6024f3f
+# meta.yaml template originally from:
+# /home/rdonnelly/conda/aggregate/pthread-stubs-feedstock/recipe, last modified Sun Sep 17 15:44:34 2017
+# ------------------------------------------------
+
+package:
+    name: pthread-stubs
+    version: '0.3'
+source:
+    fn: libpthread-stubs-0.3.tar.bz2
+    sha256: 35b6d54e3cc6f3ba28061da81af64b9a92b7b757319098172488a660e3d87299
+    url: https://www.x.org/releases/individual/xcb/libpthread-stubs-0.3.tar.bz2
+build:
+    detect_binary_files_with_prefix: 'true'
+    number: '1'
+    string: h0ce48e5_1
+requirements:
+    build:
+        - binutils_linux-64 2.28.1 he4fe6c7_1
+        - gcc_linux-64 7.2.0 hc7b1ceb_1
+        - libgcc-ng 7.2.0 hcbc56d2_1
+        - pkg-config 0.29.2 h4878432_4
+    run:
+        - libgcc-ng >=7.2.0
+test:
+    commands:
+        - conda inspect linkages -p $PREFIX $PKG_NAME
+about:
+    home: https://xcb.freedesktop.org/
+    license: MIT
+    license_family: MIT
+    license_file: COPYING
+    summary: Stubs missing from libc for standard pthread functions
+extra:
+    copy_test_source_files: true
+    final: true
+    recipe-maintainers:
+        - ccordoba12
+        - mingwandroid
+        - pkgw

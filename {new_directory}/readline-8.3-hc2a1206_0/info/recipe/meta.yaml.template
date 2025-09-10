@@ -1,0 +1,75 @@
+{% set name = "readline" %}
+{% set version = "8.3" %}
+
+package:
+  name: {{ name }}
+  version: {{ version }}
+
+source:
+  url: https://ftp.gnu.org/gnu/{{ name }}/{{ name }}-{{ version }}.tar.gz
+  sha256: fe5383204467828cd495ee8d1d3c037a7eba1389c22bc6a041f627976f9061cc
+  patches:
+    - patches/readline83-001.patch
+
+build:
+  # Per the upstream homepage, Windows is not supported.
+  # To avoid build failure Windows is therefore skipped.
+  skip: true  # [win]
+  number: 0
+  run_exports:
+    # change soname at major ver: https://abi-laboratory.pro/tracker/timeline/readline/
+    - {{ pin_subpackage('readline') }}
+
+requirements:
+  build:
+    - {{ stdlib('c') }}
+    - {{ compiler('c') }}
+    - pkg-config
+    - make
+    - patch     # [not win]
+    - m2-patch  # [win]
+  host:
+    - ncurses {{ ncurses }} 
+  run: 
+    - ncurses 
+
+test:
+  requires:
+    - python 3.*
+  commands:
+  {% set readline_libs = [
+    'libreadline',
+    'libhistory'
+  ] %}
+  {% for lib in readline_libs %}
+    - test -f ${PREFIX}/lib/{{ lib }}.a
+    - test -f ${PREFIX}/lib/{{ lib }}${SHLIB_EXT}  # [not win]
+  {% endfor %}
+    # catch missing termcap/ncurses linkage problems
+    - python -c "import readline"
+
+about:
+  home: https://tiswww.case.edu/php/chet/readline/rltop.html
+  license: GPL-3.0-only
+  license_family: GPL
+  license_file: COPYING
+  summary: library for editing command lines as they are typed in
+  description: |
+    The GNU Readline library provides a set of functions for use by applications
+    that allow users to edit command lines as they are typed in.
+    The Readline library includes additional functions to maintain a list of previously-entered command lines,
+    to recall and perhaps reedit those lines, and perform csh-like history expansion on previous commands.
+  dev_url: https://git.savannah.gnu.org/cgit/readline.git
+  doc_url: https://tiswww.case.edu/php/chet/readline/rltop.html
+
+extra:
+  recipe-maintainers:
+    - croth1
+    - jakirkham
+    - jjhelmus
+    - pelson
+    - msarahan
+    - asmeurer
+    - msarahan
+    - mingwandroid
+    - ocefpaf

@@ -1,0 +1,7 @@
+{
+  "target_platform": "linux-64",
+  "am_version": "1.15",
+  "channel_targets": "defaults",
+  "c_compiler_version": "11.2.0",
+  "c_compiler": "gcc"
+}

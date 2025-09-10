@@ -1,0 +1,97 @@
+{
+  "paths": [
+    {
+      "_path": "include/ffi.h",
+      "path_type": "hardlink",
+      "sha256": "f49fc7045d930af653d73aa480b645b296399a6205002215894d90de4de8355a",
+      "size_in_bytes": 14287
+    },
+    {
+      "_path": "include/ffitarget.h",
+      "path_type": "hardlink",
+      "sha256": "45e4fd2585aaed711e4fa3d1377b70c8e54dcdc56bdf402fa23a8816d19cc58a",
+      "size_in_bytes": 4928
+    },
+    {
+      "_path": "lib/libffi.7.so",
+      "path_type": "softlink",
+      "sha256": "a5d54aeb8ed2fd5e0ccf9d38b28cad6dec76517f69224a5d9687c1970b57b194",
+      "size_in_bytes": 72144
+    },
+    {
+      "_path": "lib/libffi.8.so",
+      "path_type": "softlink",
+      "sha256": "a5d54aeb8ed2fd5e0ccf9d38b28cad6dec76517f69224a5d9687c1970b57b194",
+      "size_in_bytes": 72144
+    },
+    {
+      "_path": "lib/libffi.a",
+      "path_type": "hardlink",
+      "sha256": "66e22d52480d4a11234ee038fe8929c1fdeea490a344260ed10711dd900059d7",
+      "size_in_bytes": 97758
+    },
+    {
+      "_path": "lib/libffi.so",
+      "path_type": "softlink",
+      "sha256": "a5d54aeb8ed2fd5e0ccf9d38b28cad6dec76517f69224a5d9687c1970b57b194",
+      "size_in_bytes": 72144
+    },
+    {
+      "_path": "lib/libffi.so.7",
+      "path_type": "softlink",
+      "sha256": "a5d54aeb8ed2fd5e0ccf9d38b28cad6dec76517f69224a5d9687c1970b57b194",
+      "size_in_bytes": 72144
+    },
+    {
+      "_path": "lib/libffi.so.8",
+      "path_type": "softlink",
+      "sha256": "a5d54aeb8ed2fd5e0ccf9d38b28cad6dec76517f69224a5d9687c1970b57b194",
+      "size_in_bytes": 72144
+    },
+    {
+      "_path": "lib/libffi.so.8.1.2",
+      "path_type": "hardlink",
+      "sha256": "a5d54aeb8ed2fd5e0ccf9d38b28cad6dec76517f69224a5d9687c1970b57b194",
+      "size_in_bytes": 72144
+    },
+    {
+      "_path": "lib/pkgconfig/libffi.pc",
+      "file_mode": "text",
+      "path_type": "hardlink",
+      "prefix_placeholder": "/croot/libffi_1714483243560/_h_env_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_placehold_",
+      "sha256": "d42c74b8e17b72244a609b67b6f23d18da75e961f35ae11a8be0f205daee22b4",
+      "size_in_bytes": 756
+    },
+    {
+      "_path": "share/info/libffi.info",
+      "path_type": "hardlink",
+      "sha256": "f7481e5e3817a91d6c746b69f0b2708470b802bb2a6834b9a82e9f71b661fb62",
+      "size_in_bytes": 38202
+    },
+    {
+      "_path": "share/man/man3/ffi.3",
+      "path_type": "hardlink",
+      "sha256": "aa4730e114c305943a2226a524ed8447dc6b66a184523999868e5433c2c9de74",
+      "size_in_bytes": 850
+    },
+    {
+      "_path": "share/man/man3/ffi_call.3",
+      "path_type": "hardlink",
+      "sha256": "2817ce7b78cb737d7b85b18b45899470f5f565f990d056d3d8cfabf6d779477f",
+      "size_in_bytes": 2333
+    },
+    {
+      "_path": "share/man/man3/ffi_prep_cif.3",
+      "path_type": "hardlink",
+      "sha256": "f60c5bb9d04b55988da13511a2c3edfa0f39fb6f51abfb8ac24d0b161c4169c0",
+      "size_in_bytes": 1158
+    },
+    {
+      "_path": "share/man/man3/ffi_prep_cif_var.3",
+      "path_type": "hardlink",
+      "sha256": "9365685252f33f13627c9303bc01883b764227132069260c19e94100ff442a51",
+      "size_in_bytes": 1321
+    }
+  ],
+  "paths_version": 1
+}

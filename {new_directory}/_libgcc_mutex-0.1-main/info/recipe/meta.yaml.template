@@ -1,0 +1,16 @@
+{% set version = "0.1" %}
+
+
+package:
+  name: _libgcc_mutex
+  version: {{ version }}
+
+build:
+  string: {{ libgcc_mutex_build_string }}
+  {% if libgcc_mutex_build_string == "free" %}
+  track_features:
+    - free_channel_libgcc
+  {% endif %}
+
+about:
+  summary: Mutex for libgcc and libgcc-ng

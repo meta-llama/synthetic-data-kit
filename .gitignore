@@ -9,3 +9,42 @@ data/\ndata/\n*.pdf
 .venv-ci/
 data/
 example_output
+
+# Generated and output files
+data/generated/
+data/inference/
+data/outputs/
+*.log
+logs/
+.cache/
+__pycache__/
+*.cache
+*.tmp
+*.temp
+inference_outputs/
+model_outputs/
+results/
+outputs/
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+.{new_directory}
+
+# Common misspellings / alternate names for generated artifacts
+inferenced/
+outptu/
+data/inferenced/
+data/outptu/
+inferenced
+outptu

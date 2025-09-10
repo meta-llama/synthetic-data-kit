@@ -1,0 +1,125 @@
+# This file created by conda-build 24.1.2
+# meta.yaml template originally from:
+# /feedstock/recipe, last modified Wed Apr 30 14:09:16 2025
+# ------------------------------------------------
+
+package:
+  name: libxcb
+  version: 1.17.0
+source:
+  patches: null
+  sha256: 2c69287424c9e2128cb47ffe92171e10417041ec2963bceafb65cb3fcf8f0b85
+  url: https://xorg.freedesktop.org/archive/individual/lib/libxcb-1.17.0.tar.gz
+build:
+  detect_binary_files_with_prefix: true
+  number: '0'
+  run_exports:
+    - libxcb >=1.17.0,<2.0a0
+  string: h9b100fa_0
+requirements:
+  build:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - _sysroot_linux-64_curr_repodata_hack 3 haa98f57_10
+    - autoconf 2.71 pl5340h5eee18b_0
+    - automake 1.16.5 pl5340h06a4308_1
+    - binutils_impl_linux-64 2.40 h5293946_0
+    - binutils_linux-64 2.40.0 hc2dff05_2
+    - gcc_impl_linux-64 11.2.0 h1234567_1
+    - gcc_linux-64 11.2.0 h5c386dc_2
+    - gettext 0.21.0 hedfda30_2
+    - gnuconfig 2021.05.24 hd3eb1b0_0
+    - icu 73.1 h6a678d5_0
+    - kernel-headers_linux-64 3.10.0 h57e8cba_10
+    - ld_impl_linux-64 2.40 h12ee557_0
+    - libgcc-devel_linux-64 11.2.0 h1234567_1
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libstdcxx-ng 11.2.0 h1234567_1
+    - libtool 2.4.7 h6a678d5_0
+    - libxml2 2.13.8 hfdd30dd_0
+    - m4 1.4.18 h4e445db_0
+    - make 4.2.1 h1bed415_1
+    - ncurses 6.4 h6a678d5_0
+    - perl 5.38.2 0_h5eee18b_perl5
+    - pkg-config 0.29.2 h1bed415_8
+    - sysroot_linux-64 2.17 h57e8cba_10
+    - xz 5.6.4 h5eee18b_1
+    - zlib 1.2.13 h5eee18b_1
+  host:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - bzip2 1.0.8 h5eee18b_6
+    - ca-certificates 2025.2.25 h06a4308_0
+    - expat 2.7.1 h6a678d5_0
+    - ld_impl_linux-64 2.40 h12ee557_0
+    - libffi 3.4.4 h6a678d5_1
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libmpdec 4.0.0 h5eee18b_0
+    - libstdcxx-ng 11.2.0 h1234567_1
+    - libuuid 1.41.5 h5eee18b_0
+    - ncurses 6.4 h6a678d5_0
+    - openssl 3.0.16 h5eee18b_0
+    - pthread-stubs 0.3 h0ce48e5_1
+    - python 3.13.2 hf623796_100_cp313
+    - python_abi 3.13 0_cp313
+    - readline 8.2 h5eee18b_0
+    - sqlite 3.45.3 h5eee18b_0
+    - tk 8.6.14 h39e8969_0
+    - tzdata 2025a h04d1e81_0
+    - xcb-proto 1.17.0 py313h9b100fa_2
+    - xorg-libxau 1.0.12 h9b100fa_0
+    - xorg-libxdmcp 1.1.5 h9b100fa_0
+    - xorg-util-macros 1.19.0 h27cfd23_2
+    - xorg-xorgproto 2024.1 h5eee18b_0
+    - xz 5.6.4 h5eee18b_1
+    - zlib 1.2.13 h5eee18b_1
+  run:
+    - libgcc-ng >=11.2.0
+    - pthread-stubs
+    - xorg-libxau >=1.0.12,<2.0a0
+    - xorg-libxdmcp >=1.1.5,<2.0a0
+test:
+  commands:
+    - test -f $PREFIX/lib/libxcb.so
+    - test -f $PREFIX/lib/libxcb-composite.so
+    - test -f $PREFIX/lib/libxcb-damage.so
+    - test -f $PREFIX/lib/libxcb-dpms.so
+    - test -f $PREFIX/lib/libxcb-dri2.so
+    - test -f $PREFIX/lib/libxcb-glx.so
+    - test -f $PREFIX/lib/libxcb-present.so
+    - test -f $PREFIX/lib/libxcb-randr.so
+    - test -f $PREFIX/lib/libxcb-record.so
+    - test -f $PREFIX/lib/libxcb-res.so
+    - test -f $PREFIX/lib/libxcb-screensaver.so
+    - test -f $PREFIX/lib/libxcb-shape.so
+    - test -f $PREFIX/lib/libxcb-shm.so
+    - test -f $PREFIX/lib/libxcb-sync.so
+    - test -f $PREFIX/lib/libxcb-xf86dri.so
+    - test -f $PREFIX/lib/libxcb-xfixes.so
+    - test -f $PREFIX/lib/libxcb-xinerama.so
+    - test -f $PREFIX/lib/libxcb-xkb.so
+    - test -f $PREFIX/lib/libxcb-xtest.so
+    - test -f $PREFIX/lib/libxcb-xv.so
+    - test -f $PREFIX/lib/libxcb-xvmc.so
+    - test -f $PREFIX/lib/libxcb-dri3.so
+    - test -f $PREFIX/lib/libxcb-render.so
+    - test -f $PREFIX/lib/libxcb-xinput.so
+about:
+  dev_url: https://gitlab.freedesktop.org/xorg/lib/libxcb
+  doc_url: https://xcb.freedesktop.org/XcbApi/
+  home: https://xcb.freedesktop.org/
+  license: MIT
+  license_family: MIT
+  license_file: COPYING
+  summary: This is the C-language Binding (XCB) package to the X Window System protocol
+extra:
+  copy_test_source_files: true
+  final: true
+  flow_run_id: 27eff2a1-ad98-4509-9bd0-d44780c3a3ef
+  recipe-maintainers:
+    - ccordoba12
+    - pkgw
+  remote_url: git@github.com:AnacondaRecipes/libxcb-feedstock.git
+  sha: 100919a1de05526a20cc14c55374715d562c7223

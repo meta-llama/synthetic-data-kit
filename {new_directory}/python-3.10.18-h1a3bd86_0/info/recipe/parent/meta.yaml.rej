@@ -1,0 +1,17 @@
+***************
+*** 192,198 ****
+          - ncurses  # [unix]
+          - libffi
+          - ld_impl_{{ target_platform }} >=2.36.1  # [linux]
+-         - libuuid  # [unix]
+        run:
+          - ld_impl_{{ target_platform }} >=2.36.1  # [linux]
+          - tzdata
+--- 191,197 ----
+          - ncurses  # [unix]
+          - libffi
+          - ld_impl_{{ target_platform }} >=2.36.1  # [linux]
++         - libuuid  # [linux]
+        run:
+          - ld_impl_{{ target_platform }} >=2.36.1  # [linux]
+          - tzdata

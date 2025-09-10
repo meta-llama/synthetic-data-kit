@@ -1,0 +1,20 @@
+{
+  "arch": "x86_64",
+  "build": "h1234567_1",
+  "build_number": 1,
+  "constrains": [
+    "_libgcc_mutex 0.1 main",
+    "_openmp_mutex",
+    "libgomp 11.2.0 h1234567_1"
+  ],
+  "depends": [
+    "_libgcc_mutex 0.1 main",
+    "_openmp_mutex"
+  ],
+  "license": "GPL-3.0-only WITH GCC-exception-3.1",
+  "name": "libgcc-ng",
+  "platform": "linux",
+  "subdir": "linux-64",
+  "timestamp": 1654090827491,
+  "version": "11.2.0"
+}

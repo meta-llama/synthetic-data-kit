@@ -1,0 +1,10 @@
+--- configure.ac.orig	2017-02-04 17:17:00.583752530 -0500
++++ configure.ac	2017-02-04 17:17:54.347995984 -0500
+@@ -15,6 +15,7 @@
+ fi
+ 
+ AM_PATH_PYTHON([2.5])
++pythondir="$(cd $PREFIX/Lib/site-packages && pwd -W)"
+ 
+ xcbincludedir='${datadir}/xcb'
+ AC_SUBST(xcbincludedir)

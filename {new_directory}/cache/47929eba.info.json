@@ -1,0 +1,11 @@
+{
+  "mod": "Tue, 09 Sep 2025 20:33:10 GMT",
+  "etag": "\"e26bf361af2f04618066dc7581f1cacd\"",
+  "cache_control": "public, max-age=30",
+  "blake2_256_nominal": "5171cacd8d5c16178cbb5a643adb74dd62b53b9bdbf986a056f6ccebe06c2103",
+  "blake2_256": "5171cacd8d5c16178cbb5a643adb74dd62b53b9bdbf986a056f6ccebe06c2103",
+  "url": "https://repo.anaconda.com/pkgs/main/linux-64",
+  "size": 77144320,
+  "mtime_ns": 1757476987943835864,
+  "refresh_ns": 1757476988001104766
+}

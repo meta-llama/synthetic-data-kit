@@ -1,0 +1,29 @@
+From a18bab6405f24e209fa6f75cd8f13aad455064f8 Mon Sep 17 00:00:00 2001
+From: Isuru Fernando <isuruf@gmail.com>
+Date: Fri, 20 Aug 2021 10:23:51 -0700
+Subject: [PATCH 23/25] Unvendor tcltk
+
+---
+ PCbuild/tcltk.props | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/PCbuild/tcltk.props b/PCbuild/tcltk.props
+index cd54b2567b..e94a15dc24 100644
+--- a/PCbuild/tcltk.props
++++ b/PCbuild/tcltk.props
+@@ -17,8 +17,8 @@
+     <TixMinorVersion>$([System.Version]::Parse($(TixVersion)).Minor)</TixMinorVersion>
+     <TixPatchLevel>$([System.Version]::Parse($(TixVersion)).Build)</TixPatchLevel>
+     <TixRevision>$([System.Version]::Parse($(TixVersion)).Revision)</TixRevision>
+-    <tclDir Condition="$(tclDir) == ''">$(ExternalsDir)tcl-core-$(TclVersion)\</tclDir>
+-    <tkDir Condition="$(tkDir) == ''">$(ExternalsDir)tk-$(TkVersion)\</tkDir>
+-    <tixDir Condition="$(tixDir) == ''">$(ExternalsDir)tix-$(TixVersion)\</tixDir>
+-    <tcltkDir Condition="$(tcltkDir) == ''">$(ExternalsDir)tcltk-$(TclVersion)\$(ArchName)\</tcltkDir>
++    <tclDir>$(condaDir)</tclDir>
++    <tkDir>$(condaDir)</tkDir>
++    <tixDir>$(condaDir)</tixDir>
++    <tcltkDir>$(condaDir)</tcltkDir>
+ 
+-- 
+2.32.1 (Apple Git-133)
+

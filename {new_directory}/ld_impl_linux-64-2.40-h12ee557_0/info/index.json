@@ -1,0 +1,15 @@
+{
+  "arch": "x86_64",
+  "build": "h12ee557_0",
+  "build_number": 0,
+  "constrains": [
+    "binutils_impl_linux-64 2.40"
+  ],
+  "depends": [],
+  "license": "GPL-3.0-only",
+  "name": "ld_impl_linux-64",
+  "platform": "linux",
+  "subdir": "linux-64",
+  "timestamp": 1727336193185,
+  "version": "2.40"
+}

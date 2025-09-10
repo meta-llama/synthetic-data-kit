@@ -1,0 +1,18 @@
+{
+  "arch": "x86_64",
+  "build": "1_gnu",
+  "build_number": 0,
+  "constrains": [
+    "openmp_impl 9999"
+  ],
+  "depends": [
+    "_libgcc_mutex 0.1 main",
+    "libgomp >=7.5.0"
+  ],
+  "license": "BSD-3-Clause",
+  "name": "_openmp_mutex",
+  "platform": "linux",
+  "subdir": "linux-64",
+  "timestamp": 1652859733309,
+  "version": "5.1"
+}

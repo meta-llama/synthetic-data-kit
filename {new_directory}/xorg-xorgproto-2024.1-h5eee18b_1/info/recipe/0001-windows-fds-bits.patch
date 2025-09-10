@@ -1,0 +1,12 @@
+diff --git a/configure.ac b/configure.ac
+index 8fb5ad32d7..c8cce85375 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -55,6 +55,7 @@ AC_CHECK_HEADERS([sys/select.h sys/param.h sys/types.h sys/time.h])
+ # Avoid determining fds_bits on WIN32 hosts (not including cygwin)
+ case $host_os in
+ 	mingw*)		fds_bits_found=true;;
++	msys*)		fds_bits_found=true;;
+ 	*)		fds_bits_found=false;;
+ esac
+ 

@@ -15,7 +15,7 @@ paths:
 # LLM Provider configuration
 llm:
   # Provider selection: "vllm", "api-endpoint", "openai", "ollama"
-  provider: "api-endpoint"
+  provider: "openai"
 
 # VLLM server configuration
 vllm:

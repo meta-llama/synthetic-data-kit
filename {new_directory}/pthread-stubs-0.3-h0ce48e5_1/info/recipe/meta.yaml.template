@@ -1,0 +1,54 @@
+{% set xorg_name = "libpthread-stubs" %}
+{% set xorg_category = "xcb" %}
+{% set name = "pthread-stubs" %}
+{% set version = "0.3" %}
+{% set sha256 = "35b6d54e3cc6f3ba28061da81af64b9a92b7b757319098172488a660e3d87299" %}
+{% set am_version = "1.15" %} # keep synchronized with build.sh
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  fn: {{ xorg_name }}-{{ version }}.tar.bz2
+  url: https://www.x.org/releases/individual/{{ xorg_category }}/{{ xorg_name }}-{{ version }}.tar.bz2
+  sha256: {{ sha256 }}
+
+# NOTE: no Visual Studio dependent features, since this package does not build
+# or install any binary code on Windows. It needs m2w64-toolchain for the
+# configure script to run, but msys2 provides sufficient pthreads bits for
+# downstream packages.
+
+build:
+  number: 1
+  detect_binary_files_with_prefix: true
+
+requirements:
+  build:
+    - {{ compiler('c') }}
+    - m2-autoconf  # [win]
+    - m2-automake{{ am_version }}  # [win]
+    - m2-libtool  # [win]
+    - m2w64-pkg-config  # [win]
+    - m2w64-toolchain  # [win]
+    - pkg-config  # [not win]
+    - posix  # [win]
+    # - xorg-util-macros
+
+test:
+  commands:
+    - conda inspect linkages -p $PREFIX $PKG_NAME  # [not win]
+    - conda inspect objects -p $PREFIX $PKG_NAME  # [osx]
+
+about:
+  home: https://xcb.freedesktop.org/
+  license: MIT
+  license_family: MIT
+  license_file: COPYING
+  summary: "Stubs missing from libc for standard pthread functions"
+
+extra:
+  recipe-maintainers:
+    - ccordoba12
+    - mingwandroid
+    - pkgw

@@ -7,6 +7,7 @@
 import os
 import tempfile
 import requests
+import logging
 from typing import Dict, Any, List
 from urllib.parse import urlparse
 
@@ -23,6 +24,9 @@ class PDFParser:
         Returns:
             Extracted text from the PDF
         """
+        # Suppress pdfminer warnings
+        logging.getLogger('pdfminer').setLevel(logging.ERROR)
+        
         try:
             from pdfminer.high_level import extract_text
         except ImportError:

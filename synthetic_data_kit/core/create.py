@@ -18,11 +18,7 @@ from synthetic_data_kit.utils.config import get_generation_config
 
 from synthetic_data_kit.utils.lance_utils import load_lance_dataset
 
-def read_json(file_path):
-    # Read the file
-    with open(file_path, 'r', encoding='utf-8') as f:
-        document_text = f.read()
-    return document_text
+from synthetic_data_kit.parsers import parse_file
 
 
 def process_file(
@@ -63,7 +59,8 @@ def process_file(
         config_path=config_path,
         provider=provider,
         api_base=api_base,
-        model_name=model
+        model_name=model,
+        verbose=verbose
     )
     
     # Override chunking config if provided
@@ -71,9 +68,6 @@ def process_file(
         client.config.setdefault('generation', {})['chunk_size'] = chunk_size
     if chunk_overlap is not None:
         client.config.setdefault('generation', {})['overlap'] = chunk_overlap
-    
-    # Debug: Print which provider is being used
-    print(f"L Using {client.provider} provider")
     
     # Generate base filename for output
     base_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -83,7 +77,7 @@ def process_file(
         dataset = load_lance_dataset(file_path)
         documents = dataset.to_table().to_pylist()
     else:
-        documents = [{"text": read_json(file_path), "image": None}]
+        documents = parse_file(file_path)
 
     if content_type == "qa":
         generator = QAGenerator(client, config_path)
@@ -200,7 +194,8 @@ def process_file(
         # Initialize the CoT generator
         generator = COTGenerator(client, config_path)
 
-        document_text = read_json(file_path)
+        parsed_content = parse_file(file_path)
+        document_text = parsed_content[0]["text"] if parsed_content else ""
         
         # Get max_examples from args or config
         max_examples = None

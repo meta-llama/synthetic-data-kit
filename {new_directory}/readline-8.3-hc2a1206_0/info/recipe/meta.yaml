@@ -1,0 +1,91 @@
+# This file created by conda-build 24.1.2
+# meta.yaml template originally from:
+# /feedstock/recipe, last modified Wed Aug  6 13:06:40 2025
+# ------------------------------------------------
+
+package:
+  name: readline
+  version: '8.3'
+source:
+  patches:
+    - patches/readline83-001.patch
+  sha256: fe5383204467828cd495ee8d1d3c037a7eba1389c22bc6a041f627976f9061cc
+  url: https://ftp.gnu.org/gnu/readline/readline-8.3.tar.gz
+build:
+  number: '0'
+  run_exports:
+    - readline >=8.3,<9.0a0
+  string: hc2a1206_0
+requirements:
+  build:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - _sysroot_linux-64_curr_repodata_hack 3 haa98f57_10
+    - binutils_impl_linux-64 2.40 h5293946_0
+    - binutils_linux-64 2.40.0 hc2dff05_2
+    - gcc_impl_linux-64 11.2.0 h1234567_1
+    - gcc_linux-64 11.2.0 h5c386dc_2
+    - kernel-headers_linux-64 3.10.0 h57e8cba_10
+    - ld_impl_linux-64 2.40 h12ee557_0
+    - libgcc-devel_linux-64 11.2.0 h1234567_1
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - libstdcxx-ng 11.2.0 h1234567_1
+    - make 4.2.1 h1bed415_1
+    - patch 2.7.6 h7b6447c_1001
+    - pkg-config 0.29.2 h1bed415_8
+    - sysroot_linux-64 2.17 h57e8cba_10
+  host:
+    - _libgcc_mutex 0.1 main
+    - _openmp_mutex 5.1 1_gnu
+    - libgcc-ng 11.2.0 h1234567_1
+    - libgomp 11.2.0 h1234567_1
+    - ncurses 6.5 h7934f7d_0
+  run:
+    - __glibc >=2.17,<3.0.a0
+    - libgcc-ng >=11.2.0
+    - ncurses >=6.5,<7.0a0
+test:
+  commands:
+    - test -f ${PREFIX}/lib/libreadline.a
+    - test -f ${PREFIX}/lib/libreadline${SHLIB_EXT}
+    - test -f ${PREFIX}/lib/libhistory.a
+    - test -f ${PREFIX}/lib/libhistory${SHLIB_EXT}
+    - python -c "import readline"
+  requires:
+    - python 3.*
+about:
+  description: 'The GNU Readline library provides a set of functions for use by applications
+
+    that allow users to edit command lines as they are typed in.
+
+    The Readline library includes additional functions to maintain a list of previously-entered
+    command lines,
+
+    to recall and perhaps reedit those lines, and perform csh-like history expansion
+    on previous commands.
+
+    '
+  dev_url: https://git.savannah.gnu.org/cgit/readline.git
+  doc_url: https://tiswww.case.edu/php/chet/readline/rltop.html
+  home: https://tiswww.case.edu/php/chet/readline/rltop.html
+  license: GPL-3.0-only
+  license_family: GPL
+  license_file: COPYING
+  summary: library for editing command lines as they are typed in
+extra:
+  copy_test_source_files: true
+  final: true
+  flow_run_id: 1bebda3c-afd9-495e-ae11-d7b32bc4e83e
+  recipe-maintainers:
+    - asmeurer
+    - croth1
+    - jakirkham
+    - jjhelmus
+    - mingwandroid
+    - msarahan
+    - msarahan
+    - ocefpaf
+    - pelson
+  remote_url: git@github.com:AnacondaRecipes/readline-feedstock.git
+  sha: 697ae3037b1ae978a8a62fd9ea79d07fa9099983
