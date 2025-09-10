@@ -570,7 +570,8 @@ def create(
             if preview:
                 console.print("Preview mode is only available for directories. Processing single file...", style="yellow")
             
-            with console.status(f"Generating {content_type} content from {input}..."):
+            if verbose:
+                console.print(f"Generating {content_type} content from {input}...", style="blue")
                 output_path = process_file(
                     input,
                     output_dir,
@@ -586,6 +587,23 @@ def create(
                     difficulty=difficulty,
                     language=language,
                 )
+            else:
+                with console.status(f"Generating {content_type} content from {input}..."):
+                    output_path = process_file(
+                        input,
+                        output_dir,
+                        ctx.config_path,
+                        api_base,
+                        model,
+                        content_type,
+                        num_pairs,
+                        verbose,
+                        provider=provider,
+                        chunk_size=chunk_size,
+                        chunk_overlap=chunk_overlap,
+                        difficulty=difficulty,
+                        language=language,
+                    )
             if output_path:
                 console.print(f"✅ Content saved to [bold]{output_path}[/bold]", style="green")
             return 0

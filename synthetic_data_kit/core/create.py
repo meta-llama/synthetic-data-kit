@@ -185,6 +185,7 @@ def process_file(
             num_examples=num_pairs,
             include_simple_steps=verbose,  # More detailed if verbose is enabled
             difficulty=difficulty,
+            verbose=verbose,
         )
         
         # Save output

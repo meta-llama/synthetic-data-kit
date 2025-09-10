@@ -96,16 +96,20 @@ class COTGenerator:
         
         # Generate examples
         temperature = self.generation_config.get("temperature", 0.7)
-        max_tokens = self.generation_config.get("max_tokens", 4096)
+        # Cap CoT token budget for faster responses
+        max_tokens = min(
+            self.generation_config.get("max_tokens", 4096),
+            self.generation_config.get("cot_max_tokens", 768),
+        )
         
         if verbose:
             print(f"Generating {num_examples} CoT examples (single call)...")
         
         messages = [{"role": "system", "content": prompt}]
         response = self.client.chat_completion(
-            messages, 
+            messages,
             temperature=temperature,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
         )
         
         # Parse response
@@ -124,121 +128,153 @@ class COTGenerator:
     def _generate_with_chunking(self, document_text: str, num_examples: int, difficulty: Optional[str] = None) -> List[Dict[str, Any]]:
         """Generate CoT examples using chunking strategy (copied from QA generator)"""
         from synthetic_data_kit.utils.text import split_into_chunks
-        
+
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
-        
+
         # Get generation config
         chunk_size = self.generation_config.get("chunk_size", 4000)
         temperature = self.generation_config.get("temperature", 0.7)
         overlap = self.generation_config.get("overlap", 200)
-        batch_size = self.generation_config.get("batch_size", 32)
-        
+        configured_batch_size = self.generation_config.get("batch_size", 32)
+        # Cap max tokens for CoT to keep Ollama snappy
+        max_tokens = min(
+            self.generation_config.get("max_tokens", 4096),
+            self.generation_config.get("cot_max_tokens", 768),
+        )
+
         # Split text into chunks
         chunks = split_into_chunks(
-            document_text, 
-            chunk_size=chunk_size, 
-            overlap=overlap
+            document_text,
+            chunk_size=chunk_size,
+            overlap=overlap,
         )
-        
+
+        # Tune batch size for provider (Ollama benefits from smaller batches)
+        batch_size = 1 if getattr(self.client, "provider", "").lower() == "ollama" else configured_batch_size
         if verbose:
-            print(f"Generating CoT examples using chunking...")
-            print(f"Document split into {len(chunks)} chunks")
-            print(f"Using batch size of {batch_size}")
-        
-        all_examples = []
+            print(f"Generating CoT examples using chunking...", flush=True)
+            print(f"Document split into {len(chunks)} chunks", flush=True)
+            print(f"Using batch size of {batch_size}", flush=True)
+
+        all_examples: List[Dict[str, Any]] = []
         examples_per_chunk = max(1, round(num_examples / len(chunks)))
-        
+
         # Get CoT generation prompt template
         cot_prompt_template = get_prompt(self.config, "cot_generation")
-        
+
         # Prepare all message batches
-        all_messages = []
+        all_messages: List[List[Dict[str, str]]] = []
         for i, chunk in enumerate(chunks):
             # Format the prompt with text
             cot_prompt_body = cot_prompt_template.format(
                 num_examples=examples_per_chunk,
-                text=chunk
+                text=chunk,
             )
             if difficulty in {"easy", "medium", "advanced"}:
-                cot_prompt_body += f"\n\nDifficulty: {difficulty}. Craft questions and reasoning at an {difficulty}-level."
+                cot_prompt_body += (
+                    f"\n\nDifficulty: {difficulty}. Craft questions and reasoning at an {difficulty}-level."
+                )
             cot_prompt = f"{cot_prompt_body}\n\n{self._language_instruction()}"
-            
-            messages = [
-                {"role": "system", "content": cot_prompt}
-            ]
+
+            messages = [{"role": "system", "content": cot_prompt}]
             all_messages.append(messages)
-        
-        print(f"Processing {len(chunks)} chunks to generate CoT examples...")
-        
+
+        print(f"Processing {len(chunks)} chunks to generate CoT examples...", flush=True)
+
         # Process in batches (same logic as QA generator)
         for batch_start in range(0, len(chunks), batch_size):
             # Check if we've already generated enough examples
             if len(all_examples) >= num_examples:
                 if verbose:
-                    print(f"Reached target of {num_examples} examples. Stopping processing.")
+                    print(
+                        f"Reached target of {num_examples} examples. Stopping processing.",
+                        flush=True,
+                    )
                 break
-                
-            batch_end = min(batch_start + batch_size, len(chunks))
+
+            # Only request as many chunks as we still need
+            remaining_needed = num_examples - len(all_examples)
+            needed_chunks = max(
+                1, (remaining_needed + examples_per_chunk - 1) // examples_per_chunk
+            )
+            current_batch_size = min(batch_size, needed_chunks, len(chunks) - batch_start)
+            batch_end = batch_start + current_batch_size
             batch_messages = all_messages[batch_start:batch_end]
-            current_batch_size = len(batch_messages)
-            
-            batch_num = batch_start//batch_size + 1
-            total_batches = (len(chunks) + batch_size - 1)//batch_size
-            
+
+            batch_num = batch_start // batch_size + 1
+            total_batches = (len(chunks) + batch_size - 1) // batch_size
+
             # Simple progress indicator for non-verbose mode
             if not verbose:
-                print(f"Processing batch {batch_num}/{total_batches}...", end="\r")
+                print(
+                    f"Processing batch {batch_num}/{total_batches}...",
+                    end="\r",
+                    flush=True,
+                )
             else:
-                print(f"Processing batch {batch_num}/{total_batches} with {current_batch_size} chunks")
-            
+                print(
+                    f"Processing batch {batch_num}/{total_batches} with {current_batch_size} chunks",
+                    flush=True,
+                )
+
             try:
                 # Process the batch
                 batch_responses = self.client.batch_completion(
                     batch_messages,
                     temperature=temperature,
-                    batch_size=batch_size
+                    batch_size=batch_size,
+                    max_tokens=max_tokens,
                 )
-                
+
                 # Process each response in the batch
                 for j, response in enumerate(batch_responses):
                     # Check if we've reached the target before processing more
                     if len(all_examples) >= num_examples:
                         if verbose:
-                            print(f"  Reached target of {num_examples} examples. Stopping batch processing.")
+                            print(
+                                f"  Reached target of {num_examples} examples. Stopping batch processing.",
+                                flush=True,
+                            )
                         break
-                        
+
                     chunk_index = batch_start + j
                     chunk_examples = self.parse_json_output(response)
-                    
+
                     if chunk_examples:
                         # Only add examples up to the target limit
                         remaining_examples = num_examples - len(all_examples)
                         if remaining_examples > 0:
                             examples_to_add = chunk_examples[:remaining_examples]
                             all_examples.extend(examples_to_add)
-                            
+
                             if verbose:
-                                print(f"  Generated {len(examples_to_add)} examples from chunk {chunk_index+1} (total: {len(all_examples)}/{num_examples})")
-                    
+                                print(
+                                    f"  Generated {len(examples_to_add)} examples from chunk {chunk_index+1} (total: {len(all_examples)}/{num_examples})",
+                                    flush=True,
+                                )
+
                     # Break if we've reached the target
                     if len(all_examples) >= num_examples:
                         break
-                
+
                 # Break outer loop if we've reached the target
                 if len(all_examples) >= num_examples:
                     break
-                
+
             except Exception as e:
                 if verbose:
-                    print(f"  Error processing batch {batch_num}: {str(e)}")
-        
+                    print(f"  Error processing batch {batch_num}: {str(e)}", flush=True)
+
         # Clear the progress line in non-verbose mode
         if not verbose:
-            print(" " * 80, end="\r")
-            print("Batch processing complete.")
-        
+            print(" " * 80, end="\r", flush=True)
+            print("Batch processing complete.", flush=True)
+
         # Always print summary information
-        print(f"Generated {len(all_examples)} CoT examples total (requested: {num_examples})")
+        print(
+            f"Generated {len(all_examples)} CoT examples total (requested: {num_examples})",
+            flush=True,
+        )
         return all_examples
     
     def enhance_with_cot(self, conversations: List[Dict], include_simple_steps: bool = False) -> List[Dict]:
@@ -287,23 +323,23 @@ class COTGenerator:
         
         return enhanced_conversations
     
-    def process_document(self, document_text: str, num_examples: int = None, include_simple_steps: bool = False, difficulty: Optional[str] = None) -> Dict[str, Any]:
+    def process_document(self, document_text: str, num_examples: int = None, include_simple_steps: bool = False, difficulty: Optional[str] = None, verbose: Optional[bool] = None) -> Dict[str, Any]:
         """Process a document to generate CoT examples"""
+        # Determine verbosity from param or env, and propagate to env for downstream calls
+        if isinstance(verbose, bool):
+            os.environ['SDK_VERBOSE'] = 'true' if verbose else 'false'
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
-        
-        # Set the verbose environment variable
-        if verbose:
-            os.environ['SDK_VERBOSE'] = 'true'
-        else:
-            os.environ['SDK_VERBOSE'] = 'false'
         
         # Generate summary first (helpful context)
         max_context_length = self.generation_config.get("max_context_length", 8000)
         summary_prompt = f"Summarize this document in 2-3 sentences.\n\n{self._language_instruction()}"
+        if verbose:
+            print("Creating brief summary for context...")
         summary = self.client.chat_completion(
             [{"role": "system", "content": summary_prompt},
              {"role": "user", "content": document_text[0:max_context_length]}],
             temperature=0.1,
+            max_tokens=256,
         )
         
         # Generate CoT examples

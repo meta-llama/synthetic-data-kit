@@ -64,6 +64,7 @@ generation:
   chunk_size: 4000   # Size of text chunks for processing
   overlap: 200       # Overlap between chunks to maintain context
   max_tokens: 4096   # Maximum tokens in LLM responses
+  cot_max_tokens: 768  # Max tokens specifically for CoT generation to keep responses fast
   num_pairs: 25      # Default number of QA pairs to generate
   num_cot_examples: 5  # Default number of Chain of Thought examples to generate
   num_cot_enhance_examples: null  # Maximum number of conversations to enhance (null = enhance all)
