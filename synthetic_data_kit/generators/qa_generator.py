@@ -112,6 +112,8 @@ class QAGenerator:
         temperature = self.generation_config.get("temperature", 0.7)
         overlap = self.generation_config.get("overlap", 200)
         batch_size = self.generation_config.get("batch_size", 32)
+        max_rounds = max(1, int(self.generation_config.get("max_rounds", 3)))
+        max_per_chunk_cap = int(self.generation_config.get("max_per_chunk_cap", 8))
 
         # Split text into chunks
         chunks = split_into_chunks(document_text, chunk_size=chunk_size, overlap=overlap)
@@ -127,10 +129,18 @@ class QAGenerator:
             print(f"Using batch size of {batch_size}")
 
         all_qa_pairs: List[Dict[str, str]] = []
-        num_chunks = max(1, len(chunks))
-        pairs_per_chunk = max(1, num_pairs // num_chunks)
-        # Over-generate slightly to allow filtering of trivial/meta pairs
-        requested_per_chunk = min(max(2, pairs_per_chunk + 2), max(8, pairs_per_chunk))
+        seen_questions = set()
+
+        # Helper for question normalization (for dedup)
+        import re as _re
+
+        def _norm_q(q: str) -> str:
+            q = q or ""
+            q = q.strip().lower()
+            q = _re.sub(r"\s+", " ", q)
+            # remove trailing question mark variations
+            q = _re.sub(r"[؟?]+$", "", q).strip()
+            return q
 
         # Prompt template and difficulty normalization
         qa_prompt_template = get_prompt(self.config, "qa_generation")
@@ -139,12 +149,38 @@ class QAGenerator:
             if difficulty not in {"easy", "medium", "advanced"}:
                 difficulty = None
 
-        # Prepare message batches
-        all_messages: List[List[Dict[str, str]]] = []
         summary_snippet = ""  # ignore summary to avoid bias
 
-        for chunk in chunks:
+        print(f"Processing {len(chunks)} chunks to generate QA pairs...")
+
+        # Optional progress bar is per-round to reflect progress better
+        for round_idx in range(max_rounds):
+            if len(all_qa_pairs) >= num_pairs:
+                break
+
+            remaining = num_pairs - len(all_qa_pairs)
+            num_chunks = max(1, len(chunks))
+            pairs_per_chunk = max(1, remaining // num_chunks)
+            # Over-generate slightly to allow filtering of trivial/meta pairs (but cap)
+            requested_per_chunk = min(max(2, pairs_per_chunk + 1), max(max_per_chunk_cap, pairs_per_chunk))
+
+            if verbose:
+                print(f"Round {round_idx+1}/{max_rounds}: need {remaining} more; requesting ~{requested_per_chunk} per chunk")
+
+            # Build messages for this round using current requested_per_chunk
+            round_messages: List[List[Dict[str, str]]] = []
             lang_instr = self._language_instruction()
+
+            # Include a short list of already-used questions to discourage duplicates
+            used_q_examples = list(seen_questions)[:20]
+            dedup_note = ""
+            if used_q_examples:
+                # Keep the list small to avoid context bloat
+                dedup_note = (
+                    "\n- Do NOT repeat any of these existing questions (examples):\n- "
+                    + "\n- ".join(used_q_examples[:20])
+                )
+
             difficulty_rules = {
                 "easy": (
                     "Write straightforward, factual questions answerable with a single span from the text. "
@@ -165,143 +201,151 @@ class QAGenerator:
                 else ""
             )
 
-            instruction = (
-                qa_prompt_template.format(num_pairs=requested_per_chunk, summary=summary_snippet, text="")
-                + "\n\nINSTRUCTIONS:\n"
-                "- Use ONLY the SOURCE_TEXT between the fences.\n"
-                "- Never ask about page numbers, headers/footers, formatting marks, or the difficulty/instructions.\n"
-                "- Avoid trivial lists (e.g., enumerate years/dates or page numbers). Do not ask for headings/titles.\n"
-                "- Prefer content-focused, specific questions; for advanced, require multi-step reasoning.\n"
-                f"{level_text}\n\n"
-                "Return JSON array only.\n\n"
-                "SOURCE_TEXT (between fences):\n<<BEGIN_SOURCE>>\n"
-                f"{chunk}\n"
-                "<<END_SOURCE>>"
-            )
-
-            messages = [
-                {"role": "system", "content": f"You are a careful data creation assistant for LLM training. {lang_instr}"},
-                {"role": "user", "content": instruction},
-            ]
-            all_messages.append(messages)
-
-        print(f"Processing {len(chunks)} chunks to generate QA pairs...")
-
-        # Optional progress bar
-        if verbose:
-            progress_columns = [
-                TextColumn("[progress.description]{task.description}"),
-                BarColumn(),
-                TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-                TimeElapsedColumn(),
-                TimeRemainingColumn(),
-            ]
-            progress_ctx = Progress(*progress_columns)
-            generate_task = progress_ctx.add_task("Generating QA pairs", total=len(chunks))
-            progress_ctx.start()
-        else:
-            progress_ctx = None
-            generate_task = None
-
-        for batch_start in range(0, len(chunks), batch_size):
-            if len(all_qa_pairs) >= num_pairs:
-                if verbose:
-                    print(f"Reached target of {num_pairs} pairs. Stopping processing.")
-                break
-
-            batch_end = min(batch_start + batch_size, len(chunks))
-            batch_messages = all_messages[batch_start:batch_end]
-            current_batch_size = len(batch_messages)
-
-            batch_num = batch_start // batch_size + 1
-            total_batches = (len(chunks) + batch_size - 1) // batch_size
-
-            if not verbose:
-                print(f"Processing batch {batch_num}/{total_batches}...", end="\r")
-            else:
-                print(f"Processing batch {batch_num}/{total_batches} with {current_batch_size} chunks")
-
-            try:
-                batch_responses = self.client.batch_completion(
-                    batch_messages, temperature=temperature, batch_size=batch_size
+            for chunk in chunks:
+                instruction = (
+                    qa_prompt_template.format(num_pairs=requested_per_chunk, summary=summary_snippet, text="")
+                    + "\n\nINSTRUCTIONS:\n"
+                    "- Use ONLY the SOURCE_TEXT between the fences.\n"
+                    "- Return a JSON array with EXACTLY the requested number of items.\n"
+                    "- Never ask about page numbers, headers/footers, formatting marks, or the difficulty/instructions.\n"
+                    "- Avoid trivial lists (e.g., enumerate years/dates or page numbers). Do not ask for headings/titles.\n"
+                    "- Prefer content-focused, specific questions; for advanced, require multi-step reasoning.\n"
+                    f"{level_text}"
+                    f"{dedup_note}\n\n"
+                    "Return JSON array only.\n\n"
+                    "SOURCE_TEXT (between fences):\n<<BEGIN_SOURCE>>\n"
+                    f"{chunk}\n"
+                    "<<END_SOURCE>>"
                 )
 
-                for j, response in enumerate(batch_responses):
-                    if len(all_qa_pairs) >= num_pairs:
-                        if verbose:
-                            print(f"  Reached target of {num_pairs} pairs. Stopping batch processing.")
-                        break
+                messages = [
+                    {"role": "system", "content": f"You are a careful data creation assistant for LLM training. {lang_instr}"},
+                    {"role": "user", "content": instruction},
+                ]
+                round_messages.append(messages)
 
-                    chunk_pairs = parse_qa_pairs(response)
+            # Setup progress tracking for this round
+            if verbose:
+                progress_columns = [
+                    TextColumn("[progress.description]{task.description}"),
+                    BarColumn(),
+                    TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+                    TimeElapsedColumn(),
+                    TimeRemainingColumn(),
+                ]
+                progress_ctx = Progress(*progress_columns)
+                generate_task = progress_ctx.add_task(f"Generating QA pairs (round {round_idx+1})", total=len(chunks))
+                progress_ctx.start()
+            else:
+                progress_ctx = None
+                generate_task = None
 
-                    # Filter trivial/meta pairs (pages, headings, difficulty echoes, parenthesis markers)
-                    import re
-
-                    def _is_bad(q: str, a: str) -> bool:
-                        qa_l = (q + " " + a).lower()
-                        bad_keywords = [
-                            "page", "pages", "صفحة", "الصفحة", "الصفحات", "عنوان", "العنوان", "heading",
-                            "difficulty", "مستوى الصعوبة", "قوس", "أقواس", "قوسين", "بين القوسين",
-                        ]
-                        if any(k in qa_l for k in bad_keywords):
-                            return True
-                        # Numeric-heavy answer heuristic
-                        digits = len(re.findall(r"[0-9٠-٩]", a))
-                        seps = len(re.findall(r"[\s,،/\-–—]", a))
-                        alphas = len(re.findall(r"[A-Za-z\u0600-\u06FF]", a))
-                        total = max(1, len(a.strip()))
-                        # Loosen for Arabic: allow short dates when some letters present
-                        if (digits + seps) / total >= 0.85 and alphas < 2:
-                            return True
-                        trivial_q_patterns = [
-                            r"\byears?\b|\byear\b|السنوات|الأعوام|التواريخ|تاريخ|سنوات",
-                            r"أرقام الصفحات|page numbers",
-                            r"عنوان القسم|عناوين|عناوين فرعية|رؤوس أقسام|section title|headings?",
-                        ]
-                        if any(re.search(p, q, flags=re.IGNORECASE) for p in trivial_q_patterns):
-                            return True
-                        # Answers that are mostly years separated by punctuation
-                        years_only = re.sub(r"[\s،,\-–—/]+", " ", a).strip()
-                        if re.fullmatch(r"([0-9٠-٩]{2,4}\s*){1,6}", years_only):
-                            return True
-                        if any(x in qa_l for x in ["advanced", "easy", "medium", "متقدم", "سهل", "متوسط"]):
-                            return True
-                        return False
-
-                    cleaned_pairs = [
-                        p for p in chunk_pairs
-                        if isinstance(p, dict) and not _is_bad(p.get("question", ""), p.get("answer", ""))
-                    ]
-
-                    remaining_pairs = num_pairs - len(all_qa_pairs)
-                    if remaining_pairs > 0:
-                        pairs_to_add = cleaned_pairs[:remaining_pairs]
-                        all_qa_pairs.extend(pairs_to_add)
-
-                        if verbose:
-                            print(f"  Generated {len(pairs_to_add)} pairs (total: {len(all_qa_pairs)}/{num_pairs})")
-
-                    if len(all_qa_pairs) >= num_pairs:
-                        break
-
-                if progress_ctx and generate_task:
-                    progress_ctx.update(generate_task, advance=current_batch_size)
-
+            total_batches = (len(chunks) + batch_size - 1) // batch_size
+            for batch_start in range(0, len(chunks), batch_size):
                 if len(all_qa_pairs) >= num_pairs:
                     break
 
-            except Exception as e:
-                if verbose:
-                    print(f"  Error processing batch {batch_num}: {str(e)}")
-                if progress_ctx and generate_task:
-                    progress_ctx.update(generate_task, advance=current_batch_size)
+                batch_end = min(batch_start + batch_size, len(chunks))
+                batch_messages = round_messages[batch_start:batch_end]
+                current_batch_size = len(batch_messages)
 
-        if progress_ctx:
-            progress_ctx.stop()
+                batch_num = batch_start // batch_size + 1
+
+                if not verbose:
+                    print(f"Processing batch {batch_num}/{total_batches}...", end="\r")
+                else:
+                    print(f"Processing batch {batch_num}/{total_batches} with {current_batch_size} chunks (round {round_idx+1})")
+
+                try:
+                    batch_responses = self.client.batch_completion(
+                        batch_messages, temperature=temperature, batch_size=batch_size
+                    )
+
+                    for response in batch_responses:
+                        if len(all_qa_pairs) >= num_pairs:
+                            break
+
+                        chunk_pairs = parse_qa_pairs(response)
+
+                        # Filter trivial/meta pairs (pages, headings, difficulty echoes, parenthesis markers)
+                        import re
+
+                        def _is_bad(q: str, a: str) -> bool:
+                            qa_l = (q + " " + a).lower()
+                            bad_keywords = [
+                                "page", "pages", "صفحة", "الصفحة", "الصفحات", "عنوان", "العنوان", "heading",
+                                "difficulty", "مستوى الصعوبة", "قوس", "أقواس", "قوسين", "بين القوسين",
+                            ]
+                            if any(k in qa_l for k in bad_keywords):
+                                return True
+                            # Numeric-heavy answer heuristic
+                            digits = len(re.findall(r"[0-9٠-٩]", a))
+                            seps = len(re.findall(r"[\s,،/\-–—]", a))
+                            alphas = len(re.findall(r"[A-Za-z\u0600-\u06FF]", a))
+                            total = max(1, len(a.strip()))
+                            # Loosen for Arabic: allow short dates when some letters present
+                            if (digits + seps) / total >= 0.85 and alphas < 2:
+                                return True
+                            trivial_q_patterns = [
+                                r"\byears?\b|\byear\b|السنوات|الأعوام|التواريخ|تاريخ|سنوات",
+                                r"أرقام الصفحات|page numbers",
+                                r"عنوان القسم|عناوين|عناوين فرعية|رؤوس أقسام|section title|headings?",
+                            ]
+                            if any(re.search(p, q, flags=re.IGNORECASE) for p in trivial_q_patterns):
+                                return True
+                            # Answers that are mostly years separated by punctuation
+                            years_only = re.sub(r"[\s،,\-–—/]+", " ", a).strip()
+                            if re.fullmatch(r"([0-9٠-٩]{2,4}\s*){1,6}", years_only):
+                                return True
+                            if any(x in qa_l for x in ["advanced", "easy", "medium", "متقدم", "سهل", "متوسط"]):
+                                return True
+                            return False
+
+                        cleaned_pairs: List[Dict[str, str]] = []
+                        for p in chunk_pairs:
+                            if not isinstance(p, dict):
+                                continue
+                            q = p.get("question", "")
+                            a = p.get("answer", "")
+                            if _is_bad(q, a):
+                                continue
+                            nq = _norm_q(q)
+                            if not nq or nq in seen_questions:
+                                continue
+                            cleaned_pairs.append({"question": q, "answer": a})
+
+                        remaining_pairs = num_pairs - len(all_qa_pairs)
+                        if remaining_pairs > 0 and cleaned_pairs:
+                            pairs_to_add = cleaned_pairs[:remaining_pairs]
+                            for add in pairs_to_add:
+                                seen_questions.add(_norm_q(add.get("question", "")))
+                            all_qa_pairs.extend(pairs_to_add)
+
+                            if verbose:
+                                print(f"  +{len(pairs_to_add)} (total: {len(all_qa_pairs)}/{num_pairs})")
+
+                        if len(all_qa_pairs) >= num_pairs:
+                            break
+
+                    if progress_ctx and generate_task:
+                        progress_ctx.update(generate_task, advance=current_batch_size)
+
+                except Exception as e:
+                    if verbose:
+                        print(f"  Error processing batch {batch_num} (round {round_idx+1}): {str(e)}")
+                    if progress_ctx and generate_task:
+                        progress_ctx.update(generate_task, advance=current_batch_size)
+
+            if progress_ctx:
+                progress_ctx.stop()
 
         if not verbose:
             print(" " * 80, end="\r")
             print("Batch processing complete.")
+
+        # Trim in case of minor overshoot
+        if len(all_qa_pairs) > num_pairs:
+            all_qa_pairs = all_qa_pairs[:num_pairs]
 
         print(f"Generated {len(all_qa_pairs)} QA pairs total (requested: {num_pairs})")
         return all_qa_pairs
