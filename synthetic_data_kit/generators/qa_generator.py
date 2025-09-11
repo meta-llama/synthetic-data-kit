@@ -314,9 +314,19 @@ class QAGenerator:
                                 continue
                             cleaned_pairs.append({"question": q, "answer": a})
 
+                        # Deduplicate within this response to avoid selecting duplicates before slicing
+                        unique_cleaned: List[Dict[str, str]] = []
+                        local_seen = set()
+                        for p in cleaned_pairs:
+                            nq = _norm_q(p.get("question", ""))
+                            if nq in local_seen:
+                                continue
+                            local_seen.add(nq)
+                            unique_cleaned.append(p)
+
                         remaining_pairs = num_pairs - len(all_qa_pairs)
-                        if remaining_pairs > 0 and cleaned_pairs:
-                            pairs_to_add = cleaned_pairs[:remaining_pairs]
+                        if remaining_pairs > 0 and unique_cleaned:
+                            pairs_to_add = unique_cleaned[:remaining_pairs]
                             for add in pairs_to_add:
                                 seen_questions.add(_norm_q(add.get("question", "")))
                             all_qa_pairs.extend(pairs_to_add)

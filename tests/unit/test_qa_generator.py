@@ -86,6 +86,33 @@ def test_generate_qa_pairs(patch_config):
 
 
 @pytest.mark.unit
+def test_generate_qa_pairs_exact_count_and_dedup(patch_config):
+    """Test that generator enforces exact count and deduplicates questions."""
+    mock_client = MagicMock()
+    # First batch returns duplicates and more than needed
+    first_resp = json.dumps([
+        {"question": "What is synthetic data?", "answer": "A."},
+        {"question": "What is synthetic data?", "answer": "A."},
+        {"question": "Why use synthetic data?", "answer": "B."},
+        {"question": "How is synthetic data generated?", "answer": "C."},
+    ])
+    # Second batch provides an extra unique to fill if needed
+    second_resp = json.dumps([
+        {"question": "Where is synthetic data used?", "answer": "D."}
+    ])
+    mock_client.batch_completion.side_effect = [[first_resp], [second_resp]]
+
+    generator = QAGenerator(client=mock_client)
+    qa_pairs = generator.generate_qa_pairs(
+        document_text="Doc text.", summary=None, num_pairs=3
+    )
+    # Should return exactly 3 unique questions
+    assert len(qa_pairs) == 3
+    qs = {p["question"] for p in qa_pairs}
+    assert len(qs) == 3
+
+
+@pytest.mark.unit
 def test_rate_qa_pairs(patch_config):
     """Test rating QA pairs."""
     # Create mock LLM client

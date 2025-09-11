@@ -142,10 +142,20 @@ class MultimodalQAGenerator:
                             seen.add(nq)
                             cleaned.append({"question": q, "answer": a})
 
+                        # Deduplicate within this response just in case
+                        unique_cleaned: List[Dict[str, str]] = []
+                        local_seen = set()
+                        for p in cleaned:
+                            nq = _norm_q(p.get("question", ""))
+                            if nq in local_seen:
+                                continue
+                            local_seen.add(nq)
+                            unique_cleaned.append(p)
+
                         # Add up to remaining
                         remaining_pairs = num_pairs - len(all_qa_pairs)
-                        if remaining_pairs > 0 and cleaned:
-                            to_add = cleaned[:remaining_pairs]
+                        if remaining_pairs > 0 and unique_cleaned:
+                            to_add = unique_cleaned[:remaining_pairs]
                             all_qa_pairs.extend(to_add)
                 except Exception as e:
                     if verbose:
