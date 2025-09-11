@@ -250,7 +250,8 @@ class QAGenerator:
                         seps = len(re.findall(r"[\s,،/\-–—]", a))
                         alphas = len(re.findall(r"[A-Za-z\u0600-\u06FF]", a))
                         total = max(1, len(a.strip()))
-                        if (digits + seps) / total >= 0.7 and alphas < 3:
+                        # Loosen for Arabic: allow short dates when some letters present
+                        if (digits + seps) / total >= 0.85 and alphas < 2:
                             return True
                         trivial_q_patterns = [
                             r"\byears?\b|السنوات|الأعوام",
@@ -259,7 +260,7 @@ class QAGenerator:
                         ]
                         if any(re.search(p, q, flags=re.IGNORECASE) for p in trivial_q_patterns):
                             return True
-                        if any(x in qa_l for x in ["advanced", "easy", "medium"]):
+                        if any(x in qa_l for x in ["advanced", "easy", "medium", "متقدم", "سهل", "متوسط"]):
                             return True
                         return False
 
