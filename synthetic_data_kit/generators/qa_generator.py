@@ -101,7 +101,7 @@ class QAGenerator:
     def generate_qa_pairs(
         self,
         document_text: str,
-        summary: Optional[str] = None,
+    summary: Optional[str] = None,
         num_pairs: int = 25,
         difficulty: Optional[str] = None,
     ) -> List[Dict[str, str]]:
@@ -135,7 +135,7 @@ class QAGenerator:
         num_chunks = max(1, len(chunks))
         pairs_per_chunk = max(1, num_pairs // num_chunks)
 
-        # Get QA generation prompt template
+    # Get QA generation prompt template
         qa_prompt_template = get_prompt(self.config, "qa_generation")
         difficulty = (
             (difficulty or self.generation_config.get("default_difficulty"))
@@ -146,8 +146,8 @@ class QAGenerator:
 
         # Prepare all message batches
         all_messages: List[List[Dict[str, str]]] = []
-        # Use only a tiny summary snippet if provided; otherwise empty string to avoid biasing generation
-        summary_snippet = (summary or "")[:100]
+        # We intentionally ignore summary to avoid biasing generation away from selected pages/chunks
+        summary_snippet = ""
 
         for chunk in chunks:
             # Format the prompt primarily with the actual chunk text; include only a tiny optional summary snippet
@@ -157,8 +157,25 @@ class QAGenerator:
                 text=chunk,
             )
             if difficulty in {"easy", "medium", "advanced"}:
+                # Strengthen difficulty guidance and specificity requirements
+                difficulty_rules = {
+                    "easy": (
+                        "Write straightforward, factual questions answerable with a single span from the text. "
+                        "Use concrete nouns and exact phrases present in the chunk."
+                    ),
+                    "medium": (
+                        "Write questions that require combining 2-3 facts from the text. "
+                        "Prefer dates, quantities, named entities, and causality explicitly stated."
+                    ),
+                    "advanced": (
+                        "Write multi-step questions that require cross-sentence reasoning and synthesis of multiple details. "
+                        "Aim for specificity with numbers, dates, names, or technical terms directly cited from the text."
+                    ),
+                }
                 qa_prompt += (
-                    f"\n\nDifficulty: {difficulty}. Generate questions that are {difficulty}-level."
+                    f"\n\nDifficulty: {difficulty}. {difficulty_rules[difficulty]}\n"
+                    "Avoid generic definitional questions unless that exact definition is present in the text. "
+                    "Base every answer strictly on the provided text."
                 )
 
             # Add language instruction to the system prompt
@@ -381,7 +398,8 @@ class QAGenerator:
                         verbose: bool = False,
                         rolling_summary: Optional[bool] = False,
                         difficulty: Optional[str] = None) -> Dict[str, Any]:
-        """Process a list of documents to generate QA pairs without rating"""
+        """Process a list of documents to generate QA pairs without rating.
+        Summary generation is intentionally omitted to avoid bias and reduce output size."""
         # Set the verbose environment variable
         if verbose:
             os.environ['SDK_VERBOSE'] = 'true'
@@ -391,17 +409,14 @@ class QAGenerator:
         all_qa_pairs: List[Dict[str, Any]] = []
         full_text = " ".join([doc["text"] for doc in documents])
 
-        # Generate a brief summary for metadata only (do not bias QA generation)
-        summary = self.generate_summary(full_text, rolling_summary=rolling_summary)
-
-        # Generate QA pairs grounded in chunk text (do not use summary as a source)
+        # Generate QA pairs grounded in chunk text
         qa_pairs = self.generate_qa_pairs(
             full_text, None, num_pairs=num_pairs, difficulty=difficulty
         )
 
         all_qa_pairs.extend(qa_pairs)
 
-        # Prepare result - no rating at this stage
-        result = {"summary": summary, "qa_pairs": all_qa_pairs}
+        # Prepare result - no summary included
+        result = {"qa_pairs": all_qa_pairs}
 
         return result

@@ -100,7 +100,7 @@ def process_file(
             config = client.config
             generation_config = get_generation_config(config)
             num_pairs = generation_config.get("num_pairs", 25)
-        
+
         # Process document
         result = generator.process_documents(
             documents,
@@ -109,12 +109,12 @@ def process_file(
             rolling_summary=rolling_summary,
             difficulty=difficulty,
         )
-        
+
         # Save output
         suffix = f"_{difficulty}" if difficulty else ""
         output_path = os.path.join(output_dir, f"{base_name}{suffix}_qa_pairs.json")
         print(f"Saving result to {output_path}")
-            
+
         # Now save the actual result
         try:
             with open(output_path, 'w', encoding='utf-8') as f:
@@ -122,7 +122,7 @@ def process_file(
             print(f"Successfully wrote result to {output_path}")
         except Exception as e:
             print(f"Error writing result file: {e}")
-        
+
         return output_path
     
     elif content_type == "multimodal-qa":
@@ -179,7 +179,7 @@ def process_file(
             config = client.config
             generation_config = get_generation_config(config)
             num_pairs = generation_config.get("num_cot_examples", 5)
-        
+
         # Process document to generate CoT examples
         result = generator.process_document(
             full_text,

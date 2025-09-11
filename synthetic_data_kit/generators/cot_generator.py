@@ -91,7 +91,22 @@ class COTGenerator:
             text=document_text,
         )
         if difficulty in {"easy", "medium", "advanced"}:
-            prompt_body += f"\n\nDifficulty: {difficulty}. Craft questions and reasoning at an {difficulty}-level."
+            # Strengthen difficulty requirements and grounding
+            difficulty_rules = {
+                "easy": (
+                    "Generate straightforward questions and short reasoning tied to a single explicit fact in the text."
+                ),
+                "medium": (
+                    "Generate questions requiring combining 2-3 explicit facts; reasoning should reference those facts."
+                ),
+                "advanced": (
+                    "Generate multi-step questions that synthesize multiple details across sentences; reasoning must cite numbers, dates, names, or technical terms found in the text."
+                ),
+            }
+            prompt_body += (
+                f"\n\nDifficulty: {difficulty}. {difficulty_rules[difficulty]}\n"
+                "Avoid generic or opinion questions. Use only information present in the text."
+            )
         prompt = f"{prompt_body}\n\n{self._language_instruction()}"
         
         # Generate examples
@@ -177,8 +192,20 @@ class COTGenerator:
                 text=chunk,
             )
             if difficulty in {"easy", "medium", "advanced"}:
+                difficulty_rules = {
+                    "easy": (
+                        "Generate straightforward questions and short reasoning tied to a single explicit fact in the text."
+                    ),
+                    "medium": (
+                        "Generate questions requiring combining 2-3 explicit facts; reasoning should reference those facts."
+                    ),
+                    "advanced": (
+                        "Generate multi-step questions that synthesize multiple details across sentences; reasoning must cite numbers, dates, names, or technical terms found in the text."
+                    ),
+                }
                 cot_prompt_body += (
-                    f"\n\nDifficulty: {difficulty}. Craft questions and reasoning at an {difficulty}-level."
+                    f"\n\nDifficulty: {difficulty}. {difficulty_rules[difficulty]}\n"
+                    "Avoid generic or opinion questions. Use only information present in the text."
                 )
             cot_prompt = f"{cot_prompt_body}\n\n{self._language_instruction()}"
 
@@ -336,17 +363,7 @@ class COTGenerator:
             os.environ['SDK_VERBOSE'] = 'true' if verbose else 'false'
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
-        # Generate summary first (helpful context)
-        max_context_length = self.generation_config.get("max_context_length", 8000)
-        summary_prompt = f"Summarize this document in 2-3 sentences.\n\n{self._language_instruction()}"
-        if verbose:
-            print("Creating brief summary for context...")
-        summary = self.client.chat_completion(
-            [{"role": "system", "content": summary_prompt},
-             {"role": "user", "content": document_text[0:max_context_length]}],
-            temperature=0.1,
-            max_tokens=256,
-        )
+    # No summary generation to avoid generic outputs and reduce overhead
         
         # Generate CoT examples
         examples = self.generate_cot_examples(document_text, num_examples, difficulty=difficulty)
@@ -364,7 +381,6 @@ class COTGenerator:
         
         # Prepare result
         result = {
-            "summary": summary,
             "cot_examples": examples,
             "conversations": conversations
         }

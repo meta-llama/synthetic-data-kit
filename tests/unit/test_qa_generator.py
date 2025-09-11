@@ -172,8 +172,6 @@ def test_process_document(patch_config):
         documents=[{"text": "This is a document to process."}], num_pairs=2, verbose=False
     )
 
-    # Check that the result contains summary and QA pairs
-    assert "summary" in result
+    # Check that the result contains QA pairs only (no summary)
     assert "qa_pairs" in result
-    assert result["summary"] == "This is a summary of the document."
     assert len(result["qa_pairs"]) == 2
