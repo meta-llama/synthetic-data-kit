@@ -279,7 +279,10 @@ def ingest(
         False, "--multimodal", help="Enable multimodal parsing for supported file types"
     ),
     page_range: Optional[str] = typer.Option(
-        None, "--page-range", "--page_range", help="Inclusive page range for PDFs, e.g., '[100,115]' or '100-115'"
+        None,
+        "--page-range",
+        "--page_range",
+        help="Inclusive page range for PDFs, e.g., '[100,115]' or '100-115'",
     ),
 ):
     """
@@ -300,8 +303,8 @@ def ingest(
 
     # Parse page_range string to tuple if provided
     parsed_range = None
-    if page_range:
-        rng = page_range.strip()
+    if page_range is not None:
+        rng = str(page_range).strip()
         try:
             if rng.startswith("["):
                 import json as _json

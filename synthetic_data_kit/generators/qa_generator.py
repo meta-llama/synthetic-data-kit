@@ -101,7 +101,7 @@ class QAGenerator:
     def generate_qa_pairs(
         self,
         document_text: str,
-    summary: Optional[str] = None,
+        summary: Optional[str] = None,
         num_pairs: int = 25,
         difficulty: Optional[str] = None,
     ) -> List[Dict[str, str]]:
@@ -114,12 +114,7 @@ class QAGenerator:
         batch_size = self.generation_config.get("batch_size", 32)
 
         # Split text into chunks
-        chunks = split_into_chunks(
-            document_text,
-            chunk_size=chunk_size,
-            overlap=overlap,
-        )
-        # Randomize chunk order to diversify coverage within the selected page range
+        chunks = split_into_chunks(document_text, chunk_size=chunk_size, overlap=overlap)
         try:
             import random
             random.shuffle(chunks)
@@ -134,67 +129,66 @@ class QAGenerator:
         all_qa_pairs: List[Dict[str, str]] = []
         num_chunks = max(1, len(chunks))
         pairs_per_chunk = max(1, num_pairs // num_chunks)
+        # Over-generate slightly to allow filtering of trivial/meta pairs
+        requested_per_chunk = min(max(2, pairs_per_chunk + 2), max(8, pairs_per_chunk))
 
-    # Get QA generation prompt template
+        # Prompt template and difficulty normalization
         qa_prompt_template = get_prompt(self.config, "qa_generation")
-        difficulty = (
-            (difficulty or self.generation_config.get("default_difficulty"))
-            .lower()
-            if (difficulty or self.generation_config.get("default_difficulty"))
-            else None
-        )
+        if difficulty:
+            difficulty = difficulty.lower()
+            if difficulty not in {"easy", "medium", "advanced"}:
+                difficulty = None
 
-        # Prepare all message batches
+        # Prepare message batches
         all_messages: List[List[Dict[str, str]]] = []
-        # We intentionally ignore summary to avoid biasing generation away from selected pages/chunks
-        summary_snippet = ""
+        summary_snippet = ""  # ignore summary to avoid bias
 
         for chunk in chunks:
-            # Format the prompt primarily with the actual chunk text; include only a tiny optional summary snippet
-            qa_prompt = qa_prompt_template.format(
-                num_pairs=pairs_per_chunk,
-                summary=summary_snippet,
-                text=chunk,
-            )
-            if difficulty in {"easy", "medium", "advanced"}:
-                # Strengthen difficulty guidance and specificity requirements
-                difficulty_rules = {
-                    "easy": (
-                        "Write straightforward, factual questions answerable with a single span from the text. "
-                        "Use concrete nouns and exact phrases present in the chunk."
-                    ),
-                    "medium": (
-                        "Write questions that require combining 2-3 facts from the text. "
-                        "Prefer dates, quantities, named entities, and causality explicitly stated."
-                    ),
-                    "advanced": (
-                        "Write multi-step questions that require cross-sentence reasoning and synthesis of multiple details. "
-                        "Aim for specificity with numbers, dates, names, or technical terms directly cited from the text."
-                    ),
-                }
-                qa_prompt += (
-                    f"\n\nDifficulty: {difficulty}. {difficulty_rules[difficulty]}\n"
-                    "Avoid generic definitional questions unless that exact definition is present in the text. "
-                    "Base every answer strictly on the provided text."
-                )
-
-            # Add language instruction to the system prompt
             lang_instr = self._language_instruction()
-            messages = [{"role": "system", "content": f"{qa_prompt}\n\n{lang_instr}"}]
+            difficulty_rules = {
+                "easy": (
+                    "Write straightforward, factual questions answerable with a single span from the text. "
+                    "Use concrete nouns and exact phrases present in the chunk."
+                ),
+                "medium": (
+                    "Write questions that require combining 2-3 facts from the text. "
+                    "Prefer dates, quantities, named entities, and causality explicitly stated."
+                ),
+                "advanced": (
+                    "Write multi-step questions that synthesize multiple details across sentences. "
+                    "Cite names, dates, figures, or technical terms directly from the text in the answers."
+                ),
+            }
+            level_text = (
+                f"Difficulty: {difficulty}. {difficulty_rules.get(difficulty, '')}"
+                if difficulty in {"easy", "medium", "advanced"}
+                else ""
+            )
+
+            instruction = (
+                qa_prompt_template.format(num_pairs=requested_per_chunk, summary=summary_snippet, text="")
+                + "\n\nINSTRUCTIONS:\n"
+                "- Use ONLY the SOURCE_TEXT between the fences.\n"
+                "- Never ask about page numbers, headers/footers, formatting marks, or the difficulty/instructions.\n"
+                "- Avoid trivial lists (e.g., enumerate years or page numbers) unless central to a key argument.\n"
+                "- Prefer content-focused, specific questions; for advanced, require multi-step reasoning.\n"
+                f"{level_text}\n\n"
+                "Return JSON array only.\n\n"
+                "SOURCE_TEXT (between fences):\n<<BEGIN_SOURCE>>\n"
+                f"{chunk}\n"
+                "<<END_SOURCE>>"
+            )
+
+            messages = [
+                {"role": "system", "content": f"You are a careful data creation assistant for LLM training. {lang_instr}"},
+                {"role": "user", "content": instruction},
+            ]
             all_messages.append(messages)
 
         print(f"Processing {len(chunks)} chunks to generate QA pairs...")
 
-        # Set up progress tracking based on verbose mode
+        # Optional progress bar
         if verbose:
-            from rich.progress import (
-                Progress,
-                BarColumn,
-                TextColumn,
-                TimeElapsedColumn,
-                TimeRemainingColumn,
-            )
-
             progress_columns = [
                 TextColumn("[progress.description]{task.description}"),
                 BarColumn(),
@@ -202,24 +196,17 @@ class QAGenerator:
                 TimeElapsedColumn(),
                 TimeRemainingColumn(),
             ]
-
             progress_ctx = Progress(*progress_columns)
-            generate_task = progress_ctx.add_task(
-                "Generating QA pairs", total=len(chunks)
-            )
+            generate_task = progress_ctx.add_task("Generating QA pairs", total=len(chunks))
             progress_ctx.start()
         else:
             progress_ctx = None
             generate_task = None
 
-        # Process in batches
         for batch_start in range(0, len(chunks), batch_size):
-            # Check if we've already generated enough pairs
             if len(all_qa_pairs) >= num_pairs:
                 if verbose:
-                    print(
-                        f"Reached target of {num_pairs} pairs. Stopping processing."
-                    )
+                    print(f"Reached target of {num_pairs} pairs. Stopping processing.")
                 break
 
             batch_end = min(batch_start + batch_size, len(chunks))
@@ -229,79 +216,89 @@ class QAGenerator:
             batch_num = batch_start // batch_size + 1
             total_batches = (len(chunks) + batch_size - 1) // batch_size
 
-            # Simple progress indicator for non-verbose mode
             if not verbose:
-                print(
-                    f"Processing batch {batch_num}/{total_batches}...",
-                    end="\r",
-                )
+                print(f"Processing batch {batch_num}/{total_batches}...", end="\r")
             else:
-                print(
-                    f"Processing batch {batch_num}/{total_batches} with {current_batch_size} chunks"
-                )
+                print(f"Processing batch {batch_num}/{total_batches} with {current_batch_size} chunks")
 
             try:
-                # Process the batch
                 batch_responses = self.client.batch_completion(
                     batch_messages, temperature=temperature, batch_size=batch_size
                 )
 
-                # Process each response in the batch
                 for j, response in enumerate(batch_responses):
-                    # Check if we've reached the target before processing more
                     if len(all_qa_pairs) >= num_pairs:
                         if verbose:
-                            print(
-                                f"  Reached target of {num_pairs} pairs. Stopping batch processing."
-                            )
+                            print(f"  Reached target of {num_pairs} pairs. Stopping batch processing.")
                         break
 
                     chunk_pairs = parse_qa_pairs(response)
 
-                    # Only add pairs up to the target limit
+                    # Filter trivial/meta pairs (pages, headings, difficulty echoes, parenthesis markers)
+                    import re
+
+                    def _is_bad(q: str, a: str) -> bool:
+                        qa_l = (q + " " + a).lower()
+                        bad_keywords = [
+                            "page", "pages", "صفحة", "الصفحة", "الصفحات", "عنوان", "العنوان", "heading",
+                            "difficulty", "مستوى الصعوبة", "قوس", "أقواس", "قوسين", "بين القوسين",
+                        ]
+                        if any(k in qa_l for k in bad_keywords):
+                            return True
+                        # Numeric-heavy answer heuristic
+                        digits = len(re.findall(r"[0-9٠-٩]", a))
+                        seps = len(re.findall(r"[\s,،/\-–—]", a))
+                        alphas = len(re.findall(r"[A-Za-z\u0600-\u06FF]", a))
+                        total = max(1, len(a.strip()))
+                        if (digits + seps) / total >= 0.7 and alphas < 3:
+                            return True
+                        trivial_q_patterns = [
+                            r"\byears?\b|السنوات|الأعوام",
+                            r"أرقام الصفحات|page numbers",
+                            r"عنوان القسم|section title",
+                        ]
+                        if any(re.search(p, q, flags=re.IGNORECASE) for p in trivial_q_patterns):
+                            return True
+                        if any(x in qa_l for x in ["advanced", "easy", "medium"]):
+                            return True
+                        return False
+
+                    cleaned_pairs = [
+                        p for p in chunk_pairs
+                        if isinstance(p, dict) and not _is_bad(p.get("question", ""), p.get("answer", ""))
+                    ]
+
                     remaining_pairs = num_pairs - len(all_qa_pairs)
                     if remaining_pairs > 0:
-                        pairs_to_add = chunk_pairs[:remaining_pairs]
+                        pairs_to_add = cleaned_pairs[:remaining_pairs]
                         all_qa_pairs.extend(pairs_to_add)
 
                         if verbose:
-                            print(
-                                f"  Generated {len(pairs_to_add)} pairs (total: {len(all_qa_pairs)}/{num_pairs})"
-                            )
+                            print(f"  Generated {len(pairs_to_add)} pairs (total: {len(all_qa_pairs)}/{num_pairs})")
 
-                    # Break if we've reached the target
                     if len(all_qa_pairs) >= num_pairs:
                         break
 
-                # Update progress bar if in verbose mode
                 if progress_ctx and generate_task:
                     progress_ctx.update(generate_task, advance=current_batch_size)
 
-                # Break outer loop if we've reached the target
                 if len(all_qa_pairs) >= num_pairs:
                     break
 
             except Exception as e:
                 if verbose:
                     print(f"  Error processing batch {batch_num}: {str(e)}")
-
-                # Update progress bar if in verbose mode
                 if progress_ctx and generate_task:
                     progress_ctx.update(generate_task, advance=current_batch_size)
 
-        # Stop progress bar if in verbose mode
         if progress_ctx:
             progress_ctx.stop()
 
-        # Clear the progress line in non-verbose mode
         if not verbose:
             print(" " * 80, end="\r")
             print("Batch processing complete.")
 
-        # Always print summary information, even in non-verbose mode
-        print(
-            f"Generated {len(all_qa_pairs)} QA pairs total (requested: {num_pairs})"
-        )
+        print(f"Generated {len(all_qa_pairs)} QA pairs total (requested: {num_pairs})")
         return all_qa_pairs
     
     def rate_qa_pairs(self, 
