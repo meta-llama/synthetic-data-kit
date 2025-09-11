@@ -7,7 +7,7 @@
 import os
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 from synthetic_data_kit.models.llm_client import LLMClient
 from synthetic_data_kit.generators.qa_generator import QAGenerator
@@ -36,6 +36,7 @@ def process_file(
     rolling_summary: Optional[bool] = False,
     difficulty: Optional[str] = None,
     language: str = "english",
+    page_range: Optional[Tuple[int, int]] = None,
 ) -> str:
     """Process a file to generate content
     
@@ -79,7 +80,7 @@ def process_file(
         dataset = load_lance_dataset(file_path)
         documents = dataset.to_table().to_pylist()
     else:
-        documents = parse_file(file_path)
+        documents = parse_file(file_path, page_range=page_range)
 
     # Determine target language behavior
     lang_mode = (language or "english").lower()

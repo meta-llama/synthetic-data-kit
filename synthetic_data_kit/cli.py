@@ -278,6 +278,9 @@ def ingest(
     multimodal: bool = typer.Option(
         False, "--multimodal", help="Enable multimodal parsing for supported file types"
     ),
+    page_range: Optional[str] = typer.Option(
+        None, "--page-range", "--page_range", help="Inclusive page range for PDFs, e.g., '[100,115]' or '100-115'"
+    ),
 ):
     """
     Parse documents (PDF, HTML, YouTube, DOCX, PPT, TXT) into clean text.
@@ -294,6 +297,34 @@ def ingest(
     # Get output directory from args, then config, then default
     if output_dir is None:
         output_dir = get_path_config(ctx.config, "output", "parsed")
+
+    # Parse page_range string to tuple if provided
+    parsed_range = None
+    if page_range:
+        rng = page_range.strip()
+        try:
+            if rng.startswith("["):
+                import json as _json
+                vals = _json.loads(rng)
+                if (
+                    isinstance(vals, list)
+                    and len(vals) == 2
+                    and all(isinstance(v, int) for v in vals)
+                ):
+                    parsed_range = (int(vals[0]), int(vals[1]))
+                else:
+                    raise ValueError
+            elif "-" in rng:
+                a, b = rng.split("-", 1)
+                parsed_range = (int(a), int(b))
+            else:
+                raise ValueError
+        except Exception:
+            console.print(
+                "❌ Invalid --page-range. Use '[start,end]' or 'start-end' with integers.",
+                style="red",
+            )
+            return 1
     
     try:
         # Check if input is a directory
@@ -342,6 +373,7 @@ def ingest(
                 config=ctx.config,
                 verbose=verbose,
                 multimodal=multimodal,
+                page_range=parsed_range,
             )
             
             # Return appropriate exit code
@@ -363,6 +395,7 @@ def ingest(
                     output_name=name,
                     config=ctx.config,
                     multimodal=multimodal,
+                    page_range=parsed_range,
                 )
             console.print(f"✅ Text successfully extracted to [bold]{output_path}[/bold]", style="green")
             return 0
@@ -413,6 +446,9 @@ def create(
     ),
     provider: Optional[str] = typer.Option(
         None, "--provider", help="LLM provider to use ('vllm', 'api-endpoint', 'openai', 'ollama')"
+    ),
+    page_range: Optional[str] = typer.Option(
+        None, "--page-range", "--page_range", help="Inclusive page range for PDFs, e.g., '[100,115]' or '100-115'"
     ),
 ):
     """
@@ -500,6 +536,34 @@ def create(
     # Get output directory from args, then config, then default
     if output_dir is None:
         output_dir = get_path_config(ctx.config, "output", "generated")
+
+    # Parse page_range string to tuple if provided
+    parsed_range = None
+    if page_range:
+        rng = page_range.strip()
+        try:
+            if rng.startswith("["):
+                import json as _json
+                vals = _json.loads(rng)
+                if (
+                    isinstance(vals, list)
+                    and len(vals) == 2
+                    and all(isinstance(v, int) for v in vals)
+                ):
+                    parsed_range = (int(vals[0]), int(vals[1]))
+                else:
+                    raise ValueError
+            elif "-" in rng:
+                a, b = rng.split("-", 1)
+                parsed_range = (int(a), int(b))
+            else:
+                raise ValueError
+        except Exception:
+            console.print(
+                "❌ Invalid --page-range. Use '[start,end]' or 'start-end' with integers.",
+                style="red",
+            )
+            return 1
     
     try:
         # Check if input is a directory
@@ -556,6 +620,7 @@ def create(
                 chunk_overlap=chunk_overlap,
                 difficulty=difficulty,
                 language=language,
+                page_range=parsed_range,
             )
             
             # Return appropriate exit code
@@ -573,36 +638,38 @@ def create(
             if verbose:
                 console.print(f"Generating {content_type} content from {input}...", style="blue")
                 output_path = process_file(
-                    input,
-                    output_dir,
-                    ctx.config_path,
-                    api_base,
-                    model,
-                    content_type,
-                    num_pairs,
-                    verbose,
+                    file_path=input,
+                    output_dir=output_dir,
+                    config_path=ctx.config_path,
+                    api_base=api_base,
+                    model=model,
+                    content_type=content_type,
+                    num_pairs=num_pairs,
+                    verbose=verbose,
                     provider=provider,
                     chunk_size=chunk_size,
                     chunk_overlap=chunk_overlap,
                     difficulty=difficulty,
                     language=language,
+                    page_range=parsed_range,
                 )
             else:
                 with console.status(f"Generating {content_type} content from {input}..."):
                     output_path = process_file(
-                        input,
-                        output_dir,
-                        ctx.config_path,
-                        api_base,
-                        model,
-                        content_type,
-                        num_pairs,
-                        verbose,
+                        file_path=input,
+                        output_dir=output_dir,
+                        config_path=ctx.config_path,
+                        api_base=api_base,
+                        model=model,
+                        content_type=content_type,
+                        num_pairs=num_pairs,
+                        verbose=verbose,
                         provider=provider,
                         chunk_size=chunk_size,
                         chunk_overlap=chunk_overlap,
                         difficulty=difficulty,
                         language=language,
+                        page_range=parsed_range,
                     )
             if output_path:
                 console.print(f"✅ Content saved to [bold]{output_path}[/bold]", style="green")

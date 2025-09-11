@@ -12,7 +12,7 @@ from synthetic_data_kit.parsers.ppt_parser import PPTParser
 from synthetic_data_kit.parsers.txt_parser import TXTParser
 from synthetic_data_kit.parsers.multimodal_parser import MultimodalParser
 import os
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
 
 
 def get_parser_for_file(file_path: str):
@@ -43,7 +43,7 @@ def get_parser_for_file(file_path: str):
         return TXTParser()
 
 
-def parse_file(file_path: str) -> List[Dict[str, Any]]:
+def parse_file(file_path: str, page_range: Optional[Tuple[int, int]] = None) -> List[Dict[str, Any]]:
     """Parse a file using the appropriate parser
     
     Args:
@@ -53,4 +53,8 @@ def parse_file(file_path: str) -> List[Dict[str, Any]]:
         List of dictionaries containing parsed content
     """
     parser = get_parser_for_file(file_path)
-    return parser.parse(file_path)
+    # Try passing page_range for parsers that support it (e.g., PDFParser)
+    try:
+        return parser.parse(file_path, page_range=page_range)  # type: ignore[call-arg]
+    except TypeError:
+        return parser.parse(file_path)

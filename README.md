@@ -236,6 +236,10 @@ synthetic-data-kit ingest document.pdf --multimodal
 
 # Preview mode
 synthetic-data-kit ingest ./documents/ --preview
+
+# PDF page range (inclusive, 1-based)
+synthetic-data-kit ingest report.pdf --page-range "[10,25]"
+synthetic-data-kit ingest report.pdf --page-range 10-25
 ```
 
 **Supported formats:** PDF, HTML, DOCX, PPTX, TXT, YouTube URLs
@@ -275,6 +279,11 @@ synthetic-data-kit create document.txt --type qa --provider api-endpoint --model
 # Default is English; use --language source to match the input text language (e.g., Arabic)
 synthetic-data-kit create document.txt --type qa --language source
 synthetic-data-kit create document.txt --type cot --language source
+
+# PDF page range (inclusive, 1-based)
+# You can point create directly at a PDF and limit pages
+synthetic-data-kit create document.pdf --type cot --language source --page-range "[100,115]"
+synthetic-data-kit create document.pdf --type qa --page-range 5-12
 ```
 
 **Options:**
@@ -287,6 +296,7 @@ synthetic-data-kit create document.txt --type cot --language source
 - `--provider`: LLM provider (`ollama`, `openai`, `vllm`, `api-endpoint`)
 - `--model`: Specific model to use (provider-dependent)
 - `--verbose`: Show detailed progress
+- `--page-range` / `--page_range`: For PDFs only, inclusive 1-based pages. Accepts "[start,end]" or "start-end".
 
 ### Curate
 
