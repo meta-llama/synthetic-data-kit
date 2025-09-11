@@ -148,6 +148,12 @@ class COTGenerator:
             chunk_size=chunk_size,
             overlap=overlap,
         )
+        # Randomize chunk order to diversify coverage
+        try:
+            import random
+            random.shuffle(chunks)
+        except Exception:
+            pass
 
         # Tune batch size for provider (Ollama benefits from smaller batches)
         batch_size = 1 if getattr(self.client, "provider", "").lower() == "ollama" else configured_batch_size

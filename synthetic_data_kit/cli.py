@@ -638,7 +638,7 @@ def create(
             if verbose:
                 console.print(f"Generating {content_type} content from {input}...", style="blue")
                 output_path = process_file(
-                    file_path=input,
+                    input,
                     output_dir=output_dir,
                     config_path=ctx.config_path,
                     api_base=api_base,
@@ -656,7 +656,7 @@ def create(
             else:
                 with console.status(f"Generating {content_type} content from {input}..."):
                     output_path = process_file(
-                        file_path=input,
+                        input,
                         output_dir=output_dir,
                         config_path=ctx.config_path,
                         api_base=api_base,
