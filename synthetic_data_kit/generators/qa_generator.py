@@ -170,7 +170,7 @@ class QAGenerator:
                 + "\n\nINSTRUCTIONS:\n"
                 "- Use ONLY the SOURCE_TEXT between the fences.\n"
                 "- Never ask about page numbers, headers/footers, formatting marks, or the difficulty/instructions.\n"
-                "- Avoid trivial lists (e.g., enumerate years or page numbers) unless central to a key argument.\n"
+                "- Avoid trivial lists (e.g., enumerate years/dates or page numbers). Do not ask for headings/titles.\n"
                 "- Prefer content-focused, specific questions; for advanced, require multi-step reasoning.\n"
                 f"{level_text}\n\n"
                 "Return JSON array only.\n\n"
@@ -254,11 +254,15 @@ class QAGenerator:
                         if (digits + seps) / total >= 0.85 and alphas < 2:
                             return True
                         trivial_q_patterns = [
-                            r"\byears?\b|السنوات|الأعوام",
+                            r"\byears?\b|\byear\b|السنوات|الأعوام|التواريخ|تاريخ|سنوات",
                             r"أرقام الصفحات|page numbers",
-                            r"عنوان القسم|section title",
+                            r"عنوان القسم|عناوين|عناوين فرعية|رؤوس أقسام|section title|headings?",
                         ]
                         if any(re.search(p, q, flags=re.IGNORECASE) for p in trivial_q_patterns):
+                            return True
+                        # Answers that are mostly years separated by punctuation
+                        years_only = re.sub(r"[\s،,\-–—/]+", " ", a).strip()
+                        if re.fullmatch(r"([0-9٠-٩]{2,4}\s*){1,6}", years_only):
                             return True
                         if any(x in qa_l for x in ["advanced", "easy", "medium", "متقدم", "سهل", "متوسط"]):
                             return True
