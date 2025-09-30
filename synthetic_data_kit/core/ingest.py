@@ -56,7 +56,7 @@ def determine_parser(file_path: str, config: Dict[str, Any], multimodal: bool = 
     # Check if it's a URL
     if file_path.startswith(("http://", "https://")):
         # YouTube URL
-        if "youtube.com" in file_path or "youtu.be" in file_path:
+        if "youtube.com" in file_path or "youtube" in file_path:
             return YouTubeParser()
         # PDF URL
         elif _check_pdf_url(file_path):

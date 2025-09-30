@@ -28,6 +28,7 @@ def curate_qa_pairs(
     """Clean and filter QA pairs based on quality ratings
     
     Args:
+        provider: llm provider to use eg, vllm, ollama, etc.
         input_path: Path to the input file with QA pairs
         output_path: Path to save the cleaned output
         threshold: Quality threshold (1-10)
@@ -117,7 +118,7 @@ def curate_qa_pairs(
     # This avoids conflicts with other output messages
     print(f"Processing {len(batches)} batches of QA pairs...")
     
-    # Only use detailed progress bar in verbose mode
+    # Only use a detailed progress bar in verbose mode
     if verbose:
         from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn, TimeRemainingColumn
         

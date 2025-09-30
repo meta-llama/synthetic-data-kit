@@ -44,6 +44,23 @@ def test_llm_client_vllm_initialization(patch_config, test_env):
         # Check that vLLM server was checked
         assert mock_get.called
 
+def test_llm_client_ollama_initialization(patch_config, test_env):
+    """Test LLM client initialization with Ollama provider."""
+    with patch("requests.get") as mock_get:
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = [{"name": "mock-model"}]
+        mock_get.return_value = mock_response
+
+        # Initialize client
+        client = LLMClient(provider="ollama")
+
+        # Check that the client was initialized correctly
+        assert client.provider == "ollama"
+        assert client.api_base is not None
+        assert client.model is not None
+        # Check that Ollama server was checked
+        assert mock_get.called
 
 @pytest.mark.unit
 def test_llm_client_chat_completion(patch_config, test_env):
@@ -89,7 +106,6 @@ def test_llm_client_chat_completion(patch_config, test_env):
         # Check that OpenAI client was called
         assert mock_create.called
 
-
 @pytest.mark.unit
 def test_llm_client_vllm_chat_completion(patch_config, test_env):
     """Test LLM client chat completion with vLLM provider."""
@@ -122,4 +138,37 @@ def test_llm_client_vllm_chat_completion(patch_config, test_env):
         # Check that the response is correct
         assert response == "This is a test response"
         # Check that vLLM API was called
+        assert mock_post.called
+
+def test_llm_client_ollama_chat_completion(patch_config, test_env):
+    """Test LLM client chat completion with Ollama provider."""
+    with patch("requests.post") as mock_post, patch("requests.get") as mock_get:
+        # Mock Ollama server check
+        mock_check_response = MagicMock()
+        mock_check_response.status_code = 200
+        mock_check_response.json.return_value = [{"name": "mock-model"}]
+        mock_get.return_value = mock_check_response
+
+        # Mock Ollama API response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "response": "This is a test response"
+        }
+        mock_post.return_value = mock_response
+
+        # Initialize client
+        client = LLMClient(provider="ollama")
+
+        # Test chat completion
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "What is synthetic data?"},
+        ]
+
+        response = client.chat_completion(messages, temperature=0.7)
+
+        # Check that the response is correct
+        assert response == "This is a test response"
+        # Check that Ollama API was called
         assert mock_post.called

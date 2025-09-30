@@ -20,14 +20,15 @@ PACKAGE_CONFIG_PATH = os.path.abspath(
     os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.yaml")
 )
 
-# Use internal package path as default
-DEFAULT_CONFIG_PATH = PACKAGE_CONFIG_PATH
+# Use config/config.yml package path as default
+DEFAULT_CONFIG_PATH = ORIGINAL_CONFIG_PATH
 
 def load_config(config_path: Optional[str] = None) -> Dict[str, Any]:
     """Load YAML configuration file"""
     if config_path is None:
         # Try each path in order until one exists
-        for path in [PACKAGE_CONFIG_PATH, ORIGINAL_CONFIG_PATH]:
+        # for path in [ORIGINAL_CONFIG_PATH, PACKAGE_CONFIG_PATH]:
+        for path in [ORIGINAL_CONFIG_PATH, PACKAGE_CONFIG_PATH]:
             if os.path.exists(path):
                 config_path = path
                 break
@@ -79,7 +80,7 @@ def get_llm_provider(config: Dict[str, Any]) -> str:
     """Get the selected LLM provider
     
     Returns:
-        String with provider name: 'vllm' or 'api-endpoint'
+        String with provider name: 'vllm' or 'api-endpoint' or 'ollama'
     """
     llm_config = config.get('llm', {})
     provider = llm_config.get('provider', 'vllm')
@@ -96,6 +97,16 @@ def get_vllm_config(config: Dict[str, Any]) -> Dict[str, Any]:
         'model': 'meta-llama/Llama-3.3-70B-Instruct',
         'max_retries': 3,
         'retry_delay': 1.0
+    })
+
+def get_ollama_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Get VLLM configuration"""
+    return config.get('ollama', {
+        'api_base': "http://localhost:11434/v1",  # Ollama's OpenAI-compatible endpoint
+        'api_key': "not-needed",  # Ollama doesn't require an API key
+        'model': "llama3:latest",  # Your Ollama model
+        'max_retries': 3 , # Number of retries for API calls
+        'retry_delay': 1.0 , # Initial delay between retries (seconds)
     })
 
 def get_openai_config(config: Dict[str, Any]) -> Dict[str, Any]:

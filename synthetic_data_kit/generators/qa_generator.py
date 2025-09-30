@@ -50,7 +50,7 @@ class QAGenerator:
             chunks = split_into_chunks(document_text,
                                        chunk_size=max_context_length,
                                        overlap=summary_overlap)
-
+            # print(f"Document split into {len(chunks)} chunks")
             for chunk in chunks:
                 messages = [
                     {"role": "system", "content": prompt},
@@ -71,12 +71,12 @@ class QAGenerator:
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": document_text[0:max_context_length]}
             ]
-            
+            # print(self.client.config)
             summary = self.client.chat_completion(
                 messages, 
                 temperature=0.1  # Use lower temperature for summaries
             )
-        
+
         if verbose:
             print(f"Summary generated ({len(summary)} chars)")
         return summary
