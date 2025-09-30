@@ -1,410 +1,431 @@
 # Synthetic Data Kit
 
-Tool for generating high-quality synthetic datasets to fine-tune LLMs.
+A powerful CLI tool for generating high-quality synthetic datasets to fine-tune Large Language Models (LLMs). Easily create reasoning traces, QA pairs, and convert them into fine-tuning formats.
 
-Generate Reasoning Traces, QA Pairs, save them to a fine-tuning format with a simple CLI.
+[![GitHub Repo](https://img.shields.io/badge/GitHub-Repository-blue)](https://github.com/meta-llama/synthetic-data-kit)
+[![License](https://img.shields.io/badge/License-Apache%202.0-green)](LICENSE)
 
-> [Checkout our guide on using the tool to unlock task-specific reasoning in Llama-3 family](https://github.com/meta-llama/synthetic-data-kit/tree/main/use-cases/adding_reasoning_to_llama_3)
+## Table of Contents
 
-# What does Synthetic Data Kit offer? 
+- [Overview](#overview)
+- [Key Features](#key-features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Usage](#usage)
+  - [System Check](#system-check)
+  - [Ingest](#ingest)
+  - [Create](#create)
+  - [Curate](#curate)
+  - [Save As](#save-as)
+- [Configuration](#configuration)
+- [Examples](#examples)
+- [Document Processing & Chunking](#document-processing--chunking)
+- [Advanced Usage](#advanced-usage)
+- [Troubleshooting](#troubleshooting)
+- [Testing and Demos](#testing-and-demos)
 
-Fine-Tuning Large Language Models is easy. There are many mature tools that you can use to fine-tune Llama model family using various post-training techniques.
+## Overview
 
-### Why target data preparation?
+Fine-tuning LLMs is straightforward with mature tools available for the Llama model family. However, preparing your data in the right format can be challenging. Synthetic Data Kit simplifies this by:
 
-Multiple tools support standardized formats. However, most of the times your dataset is not structured in "user", "assistant" threads or in a certain format that plays well with a fine-tuning packages. 
+- Using LLMs (Ollama, OpenAI, or custom API endpoints) to generate examples
+- Providing a modular 4-command workflow
+- Converting existing files into fine-tuning-friendly formats
+- Supporting various post-training formats
 
-This toolkit simplifies the journey of:
+The toolkit follows a simple CLI structure with 4 main commands:
+- `ingest`: Parse various file formats
+- `create`: Generate fine-tuning data (QA pairs, CoT reasoning, summaries)
+- `curate`: Filter high-quality examples using LLM-as-a-judge
+- `save-as`: Convert to your preferred fine-tuning format
 
-- Using a LLM (vLLM or any local/external API endpoint) to generate examples
-- Modular 4 command flow
-- Converting your existing files to fine-tuning friendly formats
-- Creating synthetic datasets
-- Supporting various formats of post-training fine-tuning
+## Key Features
 
-# How does Synthetic Data Kit offer it? 
+- **Multi-Provider Support**: Ollama, OpenAI, vLLM, and custom API endpoints
+- **File Format Support**: PDF, HTML, DOCX, PPTX, TXT, YouTube transcripts
+- **Data Types**: QA pairs, Chain-of-Thought reasoning, Multimodal QA
+- **Batch Processing**: Handle entire directories of files
+- **Intelligent Chunking**: Automatic handling of large documents
+- **Quality Curation**: LLM-powered filtering for high-quality data
+- **Multiple Output Formats**: Alpaca, ChatML, JSONL, OpenAI Fine-Tuning
+- **Preview Mode**: See what files will be processed before running
+- **Flexible Configuration**: YAML-based config with CLI overrides
+- **Language Control**: Respond in English (default) or match the input document language
 
-The tool is designed to follow a simple CLI structure with 4 commands:
+## Installation
 
-- `ingest` various file formats
-- `create` your fine-tuning format: `QA` pairs, `QA` pairs with CoT, `summary` format
-- `curate`: Using Llama as a judge to curate high quality examples. 
-- `save-as`: After that you can simply save these to a format that your fine-tuning workflow requires.
-
-You can override any parameter or detail by either using the CLI or overriding the default YAML config.
-
-
-### Installation
-
-#### From PyPI
+### From PyPI (Recommended)
 
 ```bash
-# Create a new environment
-
-conda create -n synthetic-data python=3.10 
-
+# Create a virtual environment
+conda create -n synthetic-data python=3.10
 conda activate synthetic-data
 
+# Install the package
 pip install synthetic-data-kit
 ```
 
-#### (Alternatively) From Source
+### From Source
 
 ```bash
+# Clone the repository
 git clone https://github.com/meta-llama/synthetic-data-kit.git
 cd synthetic-data-kit
+
+# Install in development mode
 pip install -e .
 ```
 
-To get an overview of commands type: 
+### Dependencies
 
-`synthetic-data-kit --help`
-
-### 1. Tool Setup
-
-- The tool can process both individual files and entire directories.
+Install additional dependencies based on your needs:
 
 ```bash
-# Create directory structure for the 4-stage pipeline
-mkdir -p data/{input,parsed,generated,curated,final}
+# For PDF processing
+pip install pdfminer.six
 
-# Or use the legacy structure (still supported)
-mkdir -p data/{pdf,html,youtube,docx,ppt,txt,output,generated,cleaned,final}
+# For HTML processing
+pip install beautifulsoup4
+
+# For YouTube transcripts
+pip install pytubefix youtube-transcript-api
+
+# For Office documents
+pip install python-docx python-pptx
+
+# For enhanced JSON parsing
+pip install json5
 ```
 
-- You also need a LLM backend that you will utilize for generating your dataset, if using vLLM:
+## Quick Start
 
+1. **Set up your environment:**
+   ```bash
+   # Create data directories
+   mkdir -p data/{input,parsed,generated,curated,final}
+   ```
+
+2. **Choose your LLM provider:**
+   - **Ollama** (Local, recommended):
+     ```bash
+     curl -fsSL https://ollama.ai/install.sh | sh
+     ollama pull llama3.2:3b
+     ```
+   - **OpenAI**:
+     ```bash
+     export OPENAI_API_KEY="your-api-key-here"
+     ```
+  Or create a .env file (auto-loaded):
+  ```bash
+  echo 'OPENAI_API_KEY=your-api-key-here' > .env
+  ```
+   - **vLLM**:
+     ```bash
+     pip install vllm
+     vllm serve meta-llama/Llama-3.3-70B-Instruct --port 8000
+     ```
+
+3. **Process your first document:**
+   ```bash
+   # Check system
+   synthetic-data-kit system-check --provider ollama
+
+   # Ingest and process
+   synthetic-data-kit ingest research_paper.pdf
+   synthetic-data-kit create data/parsed/research_paper.txt --type qa
+   synthetic-data-kit curate data/generated/research_paper_qa_pairs.json
+   synthetic-data-kit save-as data/curated/research_paper_cleaned.json --format alpaca
+   ```
+
+## LLM Providers & Models
+
+Synthetic Data Kit supports multiple LLM providers with flexible model selection:
+
+### Supported Providers
+
+- **Ollama** (Local, recommended for privacy)
+- **OpenAI** (Cloud, high quality)
+- **vLLM** (Local inference server)
+- **API Endpoint** (Custom/compatible APIs)
+
+### Provider Setup
+
+#### Ollama (Recommended)
 ```bash
-# Start vLLM server
-# Note you will need to grab your HF Authentication from: https://huggingface.co/settings/tokens
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull recommended models
+ollama pull llama3.2:3b      # Fast, good quality
+ollama pull llama3.1:8b      # Better quality, slower
+ollama pull mistral:7b       # Alternative option
+
+# Use in toolkit
+synthetic-data-kit create document.txt --provider ollama --model llama3.2:3b
+```
+
+#### OpenAI
+```bash
+# Set API key
+export OPENAI_API_KEY="your-api-key-here"
+
+# Use in toolkit
+synthetic-data-kit create document.txt --provider openai --model gpt-4o
+synthetic-data-kit create document.txt --provider openai --model gpt-3.5-turbo
+```
+
+#### vLLM
+```bash
+# Install vLLM
+pip install vllm
+
+# Start server
 vllm serve meta-llama/Llama-3.3-70B-Instruct --port 8000
+
+# Use in toolkit
+synthetic-data-kit create document.txt --provider vllm --model meta-llama/Llama-3.3-70B-Instruct
 ```
 
-### 2. Usage
-
-The flow follows 4 simple steps: `ingest`, `create`, `curate`, `save-as`. You can process individual files or entire directories. All data is now stored in Lance format by default.
-
+#### Custom API Endpoint
 ```bash
-# Check if your backend is running
-synthetic-data-kit system-check
-
-# SINGLE FILE PROCESSING (Original approach)
-# Parse a document to a Lance dataset
-synthetic-data-kit ingest docs/report.pdf
-# This saves file to data/parsed/report.lance
-
-# Generate QA pairs (default)
-synthetic-data-kit create data/parsed/report.lance --type qa
-
-OR 
-
-# Generate Chain of Thought (CoT) reasoning examples
-synthetic-data-kit create data/parsed/report.txt --type cot
-
-# Both of these save file to data/generated/report_qa_pairs.json
-
-# Filter content based on quality
-synthetic-data-kit curate data/generated/report_qa_pairs.json
-
-# Convert to alpaca fine-tuning format and save as HF arrow file
-synthetic-data-kit save-as data/curated/report_cleaned.json --format alpaca --storage hf
+# Use any OpenAI-compatible API
+synthetic-data-kit create document.txt --provider api-endpoint --model your-model-name
 ```
 
-### 2.1 Batch Directory Processing (New)
+### Model Recommendations
 
-Process entire directories of files with a single command:
+| Use Case | Ollama Model | OpenAI Model | Performance |
+|----------|-------------|--------------|-------------|
+| Quick testing | `llama3.2:3b` | `gpt-3.5-turbo` | Fast, good quality |
+| High quality | `llama3.1:8b` | `gpt-4o` | Slower, best quality |
+| Local only | `mistral:7b` | N/A | Good balance |
+
+## Usage
+
+### System Check
+
+Verify your LLM provider is working:
 
 ```bash
-# Parse all documents in a directory
+# Check Ollama
+synthetic-data-kit system-check --provider ollama
+
+# Check OpenAI
+synthetic-data-kit system-check --provider openai
+
+# Check vLLM
+synthetic-data-kit system-check --provider vllm
+```
+
+### Ingest
+
+Parse documents into a processable format:
+
+```bash
+# Single file
+synthetic-data-kit ingest document.pdf
+
+# Directory (batch processing)
 synthetic-data-kit ingest ./documents/
-# Processes all .pdf, .html, .docx, .pptx, .txt files
-# Saves parsed text files to data/parsed/
 
-# Generate QA pairs for all text files
-synthetic-data-kit create ./data/parsed/ --type qa
-# Processes all .txt files in the directory
-# Saves QA pairs to data/generated/
+# YouTube video
+synthetic-data-kit ingest "https://www.youtube.com/watch?v=VIDEO_ID"
 
-# Curate all generated files
-synthetic-data-kit curate ./data/generated/ --threshold 8.0
-# Processes all .json files in the directory
-# Saves curated files to data/curated/
+# Multimodal (extract text and images)
+synthetic-data-kit ingest document.pdf --multimodal
 
-# Convert all curated files to training format
-synthetic-data-kit save-as ./data/curated/ --format alpaca
-# Processes all .json files in the directory
-# Saves final files to data/final/
+# Preview mode
+synthetic-data-kit ingest ./documents/ --preview
+
+# PDF page range (inclusive, 1-based)
+synthetic-data-kit ingest report.pdf --page-range "[10,25]"
+synthetic-data-kit ingest report.pdf --page-range 10-25
 ```
 
-### 2.2 Preview Mode
+**Supported formats:** PDF, HTML, DOCX, PPTX, TXT, YouTube URLs
 
-Use `--preview` to see what files would be processed without actually processing them:
+### Create
+
+Generate synthetic data from parsed documents:
 
 ```bash
-# Preview files before processing
-synthetic-data-kit ingest ./documents --preview
-# Shows: directory stats, file counts by extension, list of files
+# QA pairs
+synthetic-data-kit create data/parsed/document.txt --type qa --num-pairs 30
 
-synthetic-data-kit create ./data/parsed --preview
-# Shows: .txt files that would be processed
+# Chain-of-Thought reasoning
+synthetic-data-kit create data/parsed/document.txt --type cot --num-pairs 20
+
+# Multimodal QA (requires multimodal ingest)
+synthetic-data-kit create data/parsed/document.lance --type multimodal-qa
+
+# Directory processing
+synthetic-data-kit create ./data/parsed/ --type qa --num-pairs 50
+
+# Custom chunking
+synthetic-data-kit create document.txt --type qa --chunk-size 2000 --chunk-overlap 100
+
+# Difficulty control (QA, CoT, Multimodal)
+synthetic-data-kit create document.txt --type qa --difficulty advanced
+synthetic-data-kit create document.txt --type cot --difficulty medium
+synthetic-data-kit create data/parsed/document.lance --type multimodal-qa --difficulty easy
+
+# Using different providers
+synthetic-data-kit create document.txt --type qa --provider ollama --model llama3.2:3b
+synthetic-data-kit create document.txt --type qa --provider openai --model gpt-4o
+synthetic-data-kit create document.txt --type qa --provider vllm --model meta-llama/Llama-3.3-70B-Instruct
+synthetic-data-kit create document.txt --type qa --provider api-endpoint --model your-custom-model
+
+# Language control
+# Default is English; use --language source to match the input text language (e.g., Arabic)
+synthetic-data-kit create document.txt --type qa --language source
+synthetic-data-kit create document.txt --type cot --language source
+
+# PDF page range (inclusive, 1-based)
+# You can point create directly at a PDF and limit pages
+synthetic-data-kit create document.pdf --type cot --language source --page-range "[100,115]"
+synthetic-data-kit create document.pdf --type qa --page-range 5-12
 ```
+
+**Options:**
+- `--type`: `qa`, `cot`, `multimodal-qa`
+- `--num-pairs`: Number of pairs to generate
+- `--chunk-size`: Text chunk size (default: 4000)
+- `--chunk-overlap`: Overlap between chunks (default: 200)
+- `--difficulty`: Question difficulty for generation (`easy`, `medium`, `advanced`) for `qa`, `cot`, and `multimodal-qa`
+- `--language`: Output language: `english` (default) or `source` to match the input text language
+- `--provider`: LLM provider (`ollama`, `openai`, `vllm`, `api-endpoint`)
+- `--model`: Specific model to use (provider-dependent)
+- `--verbose`: Show detailed progress
+- `--page-range` / `--page_range`: For PDFs only, inclusive 1-based pages. Accepts "[start,end]" or "start-end".
+
+### Curate
+
+Filter generated data for quality using LLM-as-a-judge:
+
+```bash
+# Single file
+synthetic-data-kit curate data/generated/qa_pairs.json --threshold 8.0
+
+# Directory processing
+synthetic-data-kit curate ./data/generated/ --threshold 7.5
+
+# Custom batch size
+synthetic-data-kit curate qa_pairs.json --batch-size 16
+```
+
+**Options:**
+- `--threshold`: Quality threshold (0-10, default: 7.0)
+- `--batch-size`: Processing batch size (default: 8)
+- `--provider`: LLM provider (`ollama`, `openai`, `vllm`, `api-endpoint`)
+- `--model`: Specific model to use (provider-dependent)
+
+### Save As
+
+Convert curated data to fine-tuning formats:
+
+```bash
+# Alpaca format
+synthetic-data-kit save-as data/curated/cleaned.json --format alpaca
+
+# ChatML format
+synthetic-data-kit save-as data/curated/cleaned.json --format chatml
+
+# OpenAI fine-tuning format
+synthetic-data-kit save-as data/curated/cleaned.json --format ft
+
+# Hugging Face dataset
+synthetic-data-kit save-as data/curated/cleaned.json --format ft --storage hf
+
+# Directory processing
+synthetic-data-kit save-as ./data/curated/ --format alpaca
+```
+
+**Supported formats:**
+- `alpaca`: Alpaca instruction format
+- `chatml`: ChatML conversation format
+- `ft`: OpenAI fine-tuning format
+- `jsonl`: JSON Lines format
+
+**Storage options:**
+- `json`: JSON file (default)
+- `hf`: Hugging Face dataset
+
 ## Configuration
 
-The toolkit uses a YAML configuration file (default: `configs/config.yaml`).
+The toolkit uses YAML configuration files. Default: `configs/config.yaml`
 
-Note, this can be overridden via either CLI arguments OR passing a custom YAML file
+### Basic Configuration
 
 ```yaml
-# Example configuration using vLLM
+# LLM Provider Configuration
 llm:
-  provider: "vllm"
+  provider: "ollama"  # or "openai", "api-endpoint", "vllm"
 
-vllm:
-  api_base: "http://localhost:8000/v1"
-  model: "meta-llama/Llama-3.3-70B-Instruct"
+# Provider-specific settings
+ollama:
+  api_base: "http://localhost:11434"
+  model: "llama3.2:3b"
   sleep_time: 0.1
 
+openai:
+  api_base: "https://api.openai.com/v1"
+  api_key: "sk-your-openai-api-key"
+  model: "gpt-4o"
+  sleep_time: 0.5
+
+# Generation settings
 generation:
   temperature: 0.7
   chunk_size: 4000
   num_pairs: 25
   max_context_length: 8000
 
+# Curation settings
 curate:
   threshold: 7.0
   batch_size: 8
 ```
 
-or using an API endpoint:
+### Custom Configuration
 
-```yaml
-# Example configuration using the llama API
-llm:
-  provider: "api-endpoint"
-
-api-endpoint:
-  api_base: "https://api.llama.com/v1"
-  api_key: "llama-api-key"
-  model: "Llama-4-Maverick-17B-128E-Instruct-FP8"
-  sleep_time: 0.5
-```
-
-### Customizing Configuration
-
-Create a overriding configuration file and use it with the `-c` flag:
+Create a custom config file and use it with the `-c` flag:
 
 ```bash
-synthetic-data-kit -c my_config.yaml ingest docs/paper.pdf
+synthetic-data-kit -c my_config.yaml ingest document.pdf
 ```
-
-## Examples
-
-### Processing a Single PDF Document
-
-```bash
-# Ingest PDF
-synthetic-data-kit ingest research_paper.pdf
-
-# Generate QA pairs
-synthetic-data-kit create data/parsed/research_paper.txt -n 30
-
-# Curate data
-synthetic-data-kit curate data/generated/research_paper_qa_pairs.json -t 8.5
-
-# Save in OpenAI fine-tuning format (JSON)
-synthetic-data-kit save-as data/curated/research_paper_cleaned.json -f ft
-
-# Save in OpenAI fine-tuning format (HF dataset)
-synthetic-data-kit save-as data/curated/research_paper_cleaned.json -f ft --storage hf
-```
-
-### Processing Multiple Documents (Directory)
-
-```bash
-# Process all research papers in a directory
-synthetic-data-kit ingest ./research_papers/
-
-# Generate QA pairs for all parsed documents
-synthetic-data-kit create ./data/parsed/ --type qa -n 30
-
-# Curate all generated files
-synthetic-data-kit curate ./data/generated/ -t 8.5
-
-# Save all curated files in OpenAI fine-tuning format
-synthetic-data-kit save-as ./data/curated/ -f ft --storage hf
-```
-
-### Preview Before Processing
-
-```bash
-# See what files would be processed
-synthetic-data-kit ingest ./research_papers --preview
-# Output:
-# Directory: ./research_papers
-# Total files: 15
-# Supported files: 12
-# Extensions: .pdf (8), .docx (3), .txt (1)
-# Files: paper1.pdf, paper2.pdf, ...
-
-# Preview with verbose output
-synthetic-data-kit create ./data/parsed --preview --verbose
-```
-
-### Processing a YouTube Video
-
-```bash
-# Extract transcript
-synthetic-data-kit ingest "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
-
-# Generate QA pairs with specific model
-synthetic_data_kit create data/parsed/youtube_dQw4w9WgXcQ.lance
-```
-
-### Multimodal Usage
-
-The tool can also handle multimodal data, extracting both text and images from documents.
-
-```bash
-# Ingest a PDF with multimodal support
-synthetic-data-kit ingest docs/report.pdf --multimodal
-
-# This will create a Lance dataset at data/parsed/report.lance
-# with 'text' and 'image' columns.
-
-# Generate multimodal-qa pairs from the ingested data
-synthetic-data-kit create data/parsed/report.lance --type multimodal-qa
-```
-
-### Processing Multiple Files
-
-```bash
-# NEW: Process entire directories (recommended)
-synthetic-data-kit ingest ./data/input/
-synthetic-data-kit create ./data/parsed/ --type qa -n 20
-synthetic-data-kit curate ./data/generated/ -t 7.5
-synthetic-data-kit save-as ./data/curated/ -f chatml
-
-# LEGACY: Bash script to process multiple files (still supported)
-for file in data/pdf/*.pdf; do
-  filename=$(basename "$file" .pdf)
-  
-  synthetic-data-kit ingest "$file"
-  synthetic-data-kit create "data/parsed/${filename}.txt" -n 20
-  synthetic-data-kit curate "data/generated/${filename}_qa_pairs.json" -t 7.5
-  synthetic-data-kit save-as "data/curated/${filename}_cleaned.json" -f chatml
-done
-```
-
-## Document Processing & Chunking
-
-### How Chunking Works
-
-The Synthetic Data Kit automatically handles documents of any size using an intelligent processing strategy:
-
-- **Small documents** (< 8000 characters): Processed in a single API call for maximum context and quality
-- **Large documents** (≥ 8000 characters): Automatically split into chunks with overlap to maintain context
-
-### Controlling Chunking Behavior
-
-You can customize chunking with CLI flags or config settings for both single files and directories:
-
-```bash
-# Single file with custom chunking
-synthetic-data-kit create document.txt --type qa --chunk-size 2000 --chunk-overlap 100
-
-# Directory processing with custom chunking
-synthetic-data-kit create ./data/parsed/ --type cot --num-pairs 50 --chunk-size 6000 --verbose
-
-# Preview directory processing with chunking details
-synthetic-data-kit create ./data/parsed/ --preview --verbose
-```
-
-### Chunking Parameters
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `--chunk-size` | 4000 | Size of text chunks in characters |
-| `--chunk-overlap` | 200 | Overlap between chunks to preserve context |
-| `--verbose` | false | Show chunking details and progress |
-
-### Understanding Chunking Output
-
-When using `--verbose`, you'll see chunking information for both single files and directories:
-
-```bash
-# Single file verbose output
-synthetic-data-kit create large_document.txt --type qa --num-pairs 20 --verbose
-
-# Directory verbose output
-synthetic-data-kit create ./data/parsed/ --type qa --num-pairs 20 --verbose
-```
-
-Output:
-```
-# Single file output
-Generating QA pairs...
-Document split into 8 chunks
-Using batch size of 32
-Processing 8 chunks to generate QA pairs...
-  Generated 3 pairs from chunk 1 (total: 3/20)
-  Generated 2 pairs from chunk 2 (total: 5/20)
-  ...
-  Reached target of 20 pairs. Stopping processing.
-Generated 20 QA pairs total (requested: 20)
-
-# Directory output
-Processing directory: ./data/parsed/
-Supported files: 5 (.txt files)
-Progress: ████████████████████████████████████████ 100% (5/5 files)
-✓ document1.txt: Generated 20 QA pairs
-✓ document2.txt: Generated 18 QA pairs
-✗ document3.txt: Failed - Invalid format
-✓ document4.txt: Generated 20 QA pairs
-✓ document5.txt: Generated 15 QA pairs
-
-Processing Summary:
-Total files: 5
-Successful: 4
-Failed: 1
-Total pairs generated: 73
-```
-
-### Chunking logic
-
-Both QA and CoT generation use the same chunking logic for files and directories:
-
-```bash
-# Single file processing
-synthetic-data-kit create document.txt --type qa --num-pairs 100 --chunk-size 3000
-synthetic-data-kit create document.txt --type cot --num-pairs 20 --chunk-size 3000
-
-# Directory processing
-synthetic-data-kit create ./data/parsed/ --type qa --num-pairs 100 --chunk-size 3000
-synthetic-data-kit create ./data/parsed/ --type cot --num-pairs 20 --chunk-size 3000
-```
-
-## Advanced Usage
 
 ### Custom Prompt Templates
+### Environment Variables (.env)
 
-Edit the `prompts` section in your configuration file to customize generation behavior:
+The CLI automatically loads environment variables from a `.env` file at the project root if present. This is useful for managing provider credentials without exporting them in your shell.
+
+Examples:
+
+```bash
+# .env
+OPENAI_API_KEY=sk-your-openai-api-key
+API_ENDPOINT_KEY=your-custom-endpoint-key
+```
+
+You can still export variables in your shell; `.env` loading is non-fatal if missing.
+
+
+Override default prompts in your config:
 
 ```yaml
 prompts:
   qa_generation: |
-    You are creating question-answer pairs for fine-tuning a legal assistant.
-    Focus on technical legal concepts, precedents, and statutory interpretation.
-    
-    Below is a chunk of text about: {summary}...
+    You are creating question-answer pairs for fine-tuning a {domain} assistant.
+    Focus on {focus_areas}.
     
     Create {num_pairs} high-quality question-answer pairs based ONLY on this text.
     
     Return ONLY valid JSON formatted as:
     [
-      {
-        "question": "Detailed legal question?",
-        "answer": "Precise legal answer."
-      },
+      {{
+        "question": "Detailed question?",
+        "answer": "Precise answer."
+      }},
       ...
     ]
     
@@ -414,69 +435,234 @@ prompts:
     ---
 ```
 
-### Mental Model:
+## Examples
+
+### Single Document Processing
+
+```bash
+# Complete workflow for one PDF
+synthetic-data-kit ingest research_paper.pdf
+synthetic-data-kit create data/parsed/research_paper.txt --type qa -n 30
+synthetic-data-kit curate data/generated/research_paper_qa_pairs.json -t 8.5
+synthetic-data-kit save-as data/curated/research_paper_cleaned.json --format ft
+```
+
+### Batch Directory Processing
+
+```bash
+# Process all documents in a directory
+synthetic-data-kit ingest ./research_papers/
+synthetic-data-kit create ./data/parsed/ --type qa -n 50
+synthetic-data-kit curate ./data/generated/ --threshold 8.0
+synthetic-data-kit save-as ./data/curated/ --format alpaca --storage hf
+```
+
+### Chain-of-Thought Reasoning
+
+```bash
+# Generate reasoning traces
+synthetic-data-kit ingest technical_doc.pdf
+synthetic-data-kit create data/parsed/technical_doc.txt --type cot --num-pairs 20
+synthetic-data-kit curate data/generated/technical_doc_cot.json --threshold 9.0
+synthetic-data-kit save-as data/curated/technical_doc_cot.json --format chatml
+```
+
+### Multimodal Processing
+
+```bash
+# Extract text and images
+synthetic-data-kit ingest report.pdf --multimodal
+synthetic-data-kit create data/parsed/report.lance --type multimodal-qa
+```
+
+### Preview Mode
+
+```bash
+# See what will be processed
+synthetic-data-kit ingest ./documents/ --preview
+synthetic-data-kit create ./data/parsed/ --preview --verbose
+```
+
+## Document Processing & Chunking
+
+### How Chunking Works
+
+The toolkit automatically handles documents of any size:
+
+- **Small documents** (< 8000 characters): Single API call
+- **Large documents** (≥ 8000 characters): Split into chunks with overlap
+
+### Chunking Parameters
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--chunk-size` | 4000 | Characters per chunk |
+| `--chunk-overlap` | 200 | Overlap between chunks |
+| `--verbose` | false | Show chunking progress |
+
+### Custom Chunking
+
+```bash
+# Single file
+synthetic-data-kit create large_doc.txt --type qa --chunk-size 2000 --chunk-overlap 100 --verbose
+
+# Directory
+synthetic-data-kit create ./data/parsed/ --type cot --chunk-size 6000 --verbose
+```
+
+### Understanding Output
+
+With `--verbose`, you'll see:
+
+```
+Generating QA pairs...
+Document split into 8 chunks
+Processing 8 chunks to generate QA pairs...
+  Generated 3 pairs from chunk 1 (total: 3/20)
+  Generated 2 pairs from chunk 2 (total: 5/20)
+  ...
+Generated 20 QA pairs total (requested: 20)
+```
+
+## Advanced Usage
+
+### Mental Model
 
 ```mermaid
 graph LR
-    SDK --> SystemCheck[system-check]
-    SDK[synthetic-data-kit] --> Ingest[ingest]
+    SDK[synthetic-data-kit] --> SystemCheck[system-check]
+    SDK --> Ingest[ingest]
     SDK --> Create[create]
     SDK --> Curate[curate]
     SDK --> SaveAs[save-as]
     
-    Ingest --> PDFFile[PDF File]
-    Ingest --> HTMLFile[HTML File]
-    Ingest --> YouTubeURL[File Format]
+    Ingest --> PDFFile[PDF]
+    Ingest --> HTMLFile[HTML]
+    Ingest --> YouTubeURL[YouTube]
+    Ingest --> DocxFile[DOCX]
+    Ingest --> Multimodal[Multimodal]
 
+    Create --> Ollama[Ollama]
+    Create --> OpenAI[OpenAI]
+    Create --> APIEndpoint[API Endpoint]
+    Create --> VLLM[vLLM]
     
     Create --> CoT[CoT]
     Create --> QA[QA Pairs]
     Create --> Summary[Summary]
+    Create --> MultimodalQA[Multimodal QA]
     
     Curate --> Filter[Filter by Quality]
     
-    SaveAs --> JSONL[JSONL Format]
-    SaveAs --> Alpaca[Alpaca Format]
-    SaveAs --> FT[Fine-Tuning Format]
-    SaveAs --> ChatML[ChatML Format]
+    SaveAs --> JSONL[JSONL]
+    SaveAs --> Alpaca[Alpaca]
+    SaveAs --> FT[Fine-Tuning]
+    SaveAs --> ChatML[ChatML]
 ```
 
-## Troubleshooting FAQs:
+### Custom Domain Adaptation
 
-### vLLM Server Issues
+Adapt prompts for specific domains:
 
-- Ensure vLLM is installed: `pip install vllm`
-- Start server with: `vllm serve <model_name> --port 8000`
-- Check connection: `synthetic-data-kit system-check`
+```yaml
+prompts:
+  qa_generation: |
+    You are creating question-answer pairs for fine-tuning a legal assistant.
+    Focus on technical legal concepts, precedents, and statutory interpretation.
+    
+    Create {num_pairs} high-quality question-answer pairs based ONLY on this text.
+    
+    Return ONLY valid JSON formatted as:
+    [
+      {{
+        "question": "Detailed legal question?",
+        "answer": "Precise legal answer."
+      }},
+      ...
+    ]
+    
+    Text:
+    ---
+    {text}
+    ---
+```
 
-### Memory Issues
+### Legacy Directory Structure
 
-If you encounter CUDA out of memory errors:
-- Use a smaller model
+The toolkit still supports the legacy structure:
+
+```bash
+mkdir -p data/{pdf,html,youtube,docx,ppt,txt,output,generated,cleaned,final}
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### Ollama Issues
+- **Installation**: `curl -fsSL https://ollama.ai/install.sh | sh`
+- **Model**: `ollama pull llama3.2:3b`
+- **Server**: `ollama list`
+- **API Check**: `curl http://localhost:11434/api/tags`
+
+#### OpenAI Issues
+- **API Key**: `export OPENAI_API_KEY="your-key"`
+- **Validation**: `synthetic-data-kit system-check --provider openai`
+- **Usage**: Check at https://platform.openai.com/usage
+
+#### vLLM Issues
+- **Installation**: `pip install vllm`
+- **Server**: `vllm serve <model_name> --port 8000`
+- **Connection**: `synthetic-data-kit system-check --provider vllm`
+
+#### Memory Issues
+- Use smaller models (e.g., `llama3.2:3b`)
 - Reduce batch size in config
-- Start vLLM with `--gpu-memory-utilization 0.85`
+- For vLLM: `vllm serve <model> --gpu-memory-utilization 0.85`
 
-### JSON Parsing Issues
+#### JSON Parsing Issues
+- Enable verbose: `synthetic-data-kit curate file.json -v`
+- Reduce batch size
+- Ensure LLM supports JSON output
+- Install: `pip install json5`
 
-If you encounter issues with the `curate` command:
-- Use the `-v` flag to enable verbose output
-- Set smaller batch sizes in your config.yaml
-- Ensure the LLM model supports proper JSON output
-- Install json5 for enhanced JSON parsing: `pip install json5`
+#### Parser Errors
+Install required dependencies:
+- PDF: `pip install pdfminer.six`
+- HTML: `pip install beautifulsoup4`
+- YouTube: `pip install pytubefix youtube-transcript-api`
+- DOCX: `pip install python-docx`
+- PPTX: `pip install python-pptx`
 
-### Parser Errors
+## Testing and Demos
 
-- Ensure required dependencies are installed for specific parsers:
-  - PDF: `pip install pdfminer.six`
-  - HTML: `pip install beautifulsoup4`
-  - YouTube: `pip install pytubefix youtube-transcript-api`
-  - DOCX: `pip install python-docx`
-  - PPTX: `pip install python-pptx`
+### Running Tests
 
-## License
+```bash
+# Provider tests
+python tests/unit/test_standalone.py
+python tests/unit/test_providers.py
 
-Read more about the [License](./LICENSE)
+# Functional tests for language option
+pytest tests/functional/test_language_option.py -q
+```
 
-## Contributing
+### Demo Scripts
 
-Contributions are welcome! [Read our contributing guide](./CONTRIBUTING.md)
+```bash
+# Run provider demo
+python use-cases/demo_providers.py
+```
+
+This demonstrates:
+- Ollama and OpenAI client initialization
+- API calls and configurations
+- Pipeline integration
+- Configuration setup
+
+---
+
+For more examples and use cases, check out:
+- [Adding Reasoning to Llama-3](use-cases/adding_reasoning_to_llama_3/)
+- [Multimodal QA](use-cases/multimodal-qa/)
+- [Awesome Synthetic Data Papers](use-cases/awesome-synthetic-data-papers/)

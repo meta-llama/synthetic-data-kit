@@ -7,7 +7,7 @@
 
 import os
 from pathlib import Path
-from typing import List, Dict, Any, Optional, Callable
+from typing import List, Dict, Any, Optional, Callable, Tuple
 from rich.console import Console
 from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn
 
@@ -65,6 +65,7 @@ def process_directory_ingest(
     config: Optional[Dict[str, Any]] = None,
     verbose: bool = False,
     multimodal: bool = False,
+    page_range: Optional[Tuple[int, int]] = None,
 ) -> Dict[str, Any]:
     """Process all supported files in directory for ingestion
     
@@ -122,7 +123,14 @@ def process_directory_ingest(
             
             try:
                 # Process individual file
-                output_path = process_file(file_path, output_dir, None, config, multimodal=multimodal)
+                output_path = process_file(
+                    file_path,
+                    output_dir,
+                    None,
+                    config,
+                    multimodal=multimodal,
+                    page_range=page_range,
+                )
                 
                 # Record success
                 results["successful"] += 1
@@ -194,7 +202,6 @@ def get_directory_stats(directory: str, extensions: List[str]) -> Dict[str, Any]
             if os.path.isfile(file_path):
                 stats["total_files"] += 1
                 file_ext = os.path.splitext(filename)[1].lower()
-                
                 if file_ext in extensions:
                     stats["supported_files"] += 1
                     stats["file_list"].append(filename)
@@ -223,6 +230,9 @@ def process_directory_create(
     provider: Optional[str] = None,
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
+    difficulty: Optional[str] = None,
+    language: str = "english",
+    page_range: Optional[Tuple[int, int]] = None,
 ) -> Dict[str, Any]:
     """Process all supported files in directory for content creation
     
@@ -310,7 +320,10 @@ def process_directory_create(
                     verbose,
                     provider=provider,
                     chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap
+                    chunk_overlap=chunk_overlap,
+                    difficulty=difficulty,
+                    language=language,
+                    page_range=page_range,
                 )
                 
                 # Record success

@@ -7,28 +7,46 @@
 import os
 import tempfile
 import requests
-from typing import Dict, Any, List
+import logging
+from typing import Dict, Any, List, Optional, Tuple
 from urllib.parse import urlparse
 
 
 class PDFParser:
     """Parser for PDF documents"""
 
-    def parse(self, file_path: str) -> List[Dict[str, Any]]:
+    def parse(self, file_path: str, page_range: Optional[Tuple[int, int]] = None) -> List[Dict[str, Any]]:
         """Parse a PDF file into plain text
 
         Args:
             file_path: Path to the PDF file
+            page_range: Optional inclusive 1-based page range tuple (start, end)
 
         Returns:
             Extracted text from the PDF
         """
+        # Suppress pdfminer warnings
+        logging.getLogger('pdfminer').setLevel(logging.ERROR)
+        
         try:
             from pdfminer.high_level import extract_text
         except ImportError:
             raise ImportError(
                 "pdfminer.six is required for PDF parsing. Install it with: pip install pdfminer.six"
             )
+
+        # Prepare page_numbers set for pdfminer (0-based, end exclusive in range)
+        page_numbers = None
+        if page_range is not None:
+            try:
+                start, end = page_range
+                # Convert to 0-based, keep end inclusive by using range(..., end)
+                # pdfminer expects a set of 0-based page numbers
+                if start < 1 or end < 1 or end < start:
+                    raise ValueError("Invalid page_range, expected [start,end] with start>=1 and end>=start")
+                page_numbers = set(range(start - 1, end))
+            except Exception as e:
+                raise ValueError(f"Invalid page_range provided: {page_range}. Error: {e}")
 
         if file_path.startswith(("http://", "https://")):
             # Download PDF to temporary file
@@ -44,13 +62,19 @@ class PDFParser:
 
             try:
                 # Parse the downloaded PDF
-                text = extract_text(temp_path)
+                if page_numbers is not None:
+                    text = extract_text(temp_path, page_numbers=page_numbers)
+                else:
+                    text = extract_text(temp_path)
             finally:
                 # Clean up temp file
                 os.unlink(temp_path)
         else:
             # Handle local files as before
-            text = extract_text(file_path)
+            if page_numbers is not None:
+                text = extract_text(file_path, page_numbers=page_numbers)
+            else:
+                text = extract_text(file_path)
         return [{"text": text}]
 
     def save(self, content: str, output_path: str) -> None:

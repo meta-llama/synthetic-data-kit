@@ -6,6 +6,13 @@
 # CLI Logic for synthetic-data-kit
 
 import os
+import importlib
+load_dotenv = None
+try:
+    _dotenv = importlib.import_module("dotenv")
+    load_dotenv = getattr(_dotenv, "load_dotenv", None)
+except Exception:
+    load_dotenv = None
 import typer
 from pathlib import Path
 from typing import Optional
@@ -38,6 +45,13 @@ def callback(
     """
     Global options for the Synthetic Data Kit CLI
     """
+    # Load environment variables from .env if present
+    try:
+        if load_dotenv:
+            load_dotenv(override=False)
+    except Exception:
+        # Non-fatal if dotenv isn't available at runtime
+        pass
     if config:
         ctx.config_path = config
     ctx.config = load_config(ctx.config_path)
@@ -49,26 +63,19 @@ def system_check(
         None, "--api-base", help="API base URL to check"
     ),
     provider: Optional[str] = typer.Option(
-        None, "--provider", help="Provider to check ('vllm' or 'api-endpoint')"
+        None, "--provider", help="Provider to check ('vllm', 'api-endpoint', 'openai', 'ollama')"
     )
 ):
     """
     Check if the selected LLM provider's server is running.
     """
-    # Check for API_ENDPOINT_KEY directly from environment
+    # Check for API keys directly from environment
     console.print("Environment variable check:", style="bold blue")
-    llama_key = os.environ.get('API_ENDPOINT_KEY')
-    console.print(f"API_ENDPOINT_KEY: {'Present' if llama_key else 'Not found'}")
-    # Debugging sanity test:
-    # if llama_key:
-        # console.print(f"  Value starts with: {llama_key[:10]}...")
+    api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')
+    openai_key = os.environ.get('OPENAI_API_KEY')
+    console.print(f"API_ENDPOINT_KEY: {'Present' if api_endpoint_key else 'Not found'}")
+    console.print(f"OPENAI_API_KEY: {'Present' if openai_key else 'Not found'}")
     
-    # To check the rename bug:
-    #console.print("Available environment variables:", style="bold blue")
-    #env_vars = [key for key in os.environ.keys() if 'API' in key or 'KEY' in key or 'TOKEN' in key]
-    #for var in env_vars:
-    #    console.print(f"  {var}")
-    #console.print("")
     # Get provider from args or config
     selected_provider = provider or get_llm_provider(ctx.config)
     
@@ -78,10 +85,6 @@ def system_check(
         api_base = api_base or api_endpoint_config.get("api_base")
         
         # Check for environment variables
-        api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')
-        console.print(f"API_ENDPOINT_KEY environment variable: {'Found' if api_endpoint_key else 'Not found'}")
-        
-        # Set API key with priority: env var > config
         api_key = api_endpoint_key or api_endpoint_config.get("api_key")
         if api_key:
             console.print(f"API key source: {'Environment variable' if api_endpoint_key else 'Config file'}")
@@ -95,7 +98,7 @@ def system_check(
                 try:
                     from openai import OpenAI
                 except ImportError:
-                    console.print("L API endpoint package not installed", style="red")
+                    console.print(" API endpoint package not installed", style="red")
                     console.print("Install with: pip install openai>=1.0.0", style="yellow")
                     return 1
                 
@@ -113,11 +116,13 @@ def system_check(
                     messages = [
                         {"role": "user", "content": "Hello"}
                     ]
-                    response = client.chat.completions.create(
-                        model=model,
-                        messages=messages, 
-                        temperature=0.1
-                    )
+                    # Some models (e.g., GPT-5 and OpenAI O-series like o4) don't allow sampling params
+                    name = (model or "").lower().strip()
+                    allow_sampling = not (name.startswith("gpt-5") or name.startswith(("o1", "o2", "o3", "o4")))
+                    create_kwargs = {"model": model, "messages": messages}
+                    if allow_sampling:
+                        create_kwargs["temperature"] = 0.1
+                    response = client.chat.completions.create(**create_kwargs)
                     console.print(f" API endpoint access confirmed", style="green")
                     if api_base:
                         console.print(f"Using custom API base: {api_base}", style="green")
@@ -125,15 +130,108 @@ def system_check(
                     console.print(f"Response from model: {response.choices[0].message.content}", style="green")
                     return 0
                 except Exception as e:
-                    console.print(f"L Error connecting to API endpoint: {str(e)}", style="red")
+                    console.print(f" Error connecting to API endpoint: {str(e)}", style="red")
                     if api_base:
                         console.print(f"Using custom API base: {api_base}", style="yellow")
                     if not api_key and not api_base:
                         console.print("API key is required. Set in config.yaml or as API_ENDPOINT_KEY env var", style="yellow")
                     return 1
             except Exception as e:
-                console.print(f"L Error: {str(e)}", style="red")
+                console.print(f" Error: {str(e)}", style="red")
                 return 1
+                
+    elif selected_provider == "openai":
+        # Get OpenAI config
+        from synthetic_data_kit.utils.config import get_openai_direct_config
+        openai_config = get_openai_direct_config(ctx.config)
+        api_base = api_base or openai_config.get("api_base")
+        
+        # Check for environment variables
+        api_key = openai_key or openai_config.get("api_key")
+        if api_key:
+            console.print(f"API key source: {'Environment variable' if openai_key else 'Config file'}")
+        
+        model = openai_config.get("model")
+        
+        # Check OpenAI access
+        with console.status(f"Checking OpenAI access..."):
+            try:
+                # Try to import OpenAI
+                try:
+                    from openai import OpenAI
+                except ImportError:
+                    console.print(" OpenAI package not installed", style="red")
+                    console.print("Install with: pip install openai>=1.0.0", style="yellow")
+                    return 1
+                
+                # Create client
+                client_kwargs = {}
+                if api_key:
+                    client_kwargs['api_key'] = api_key
+                if api_base:
+                    client_kwargs['base_url'] = api_base
+                
+                # Check API access
+                try:
+                    client = OpenAI(**client_kwargs)
+                    # Try a simple models request to check connectivity
+                    messages = [
+                        {"role": "user", "content": "Hello"}
+                    ]
+                    # Some models (e.g., GPT-5 and OpenAI O-series like o4) don't allow sampling params
+                    name = (model or "").lower().strip()
+                    allow_sampling = not (name.startswith("gpt-5") or name.startswith(("o1", "o2", "o3", "o4")))
+                    create_kwargs = {"model": model, "messages": messages}
+                    if allow_sampling:
+                        create_kwargs["temperature"] = 0.1
+                    response = client.chat.completions.create(**create_kwargs)
+                    console.print(f" OpenAI access confirmed", style="green")
+                    console.print(f"Using API base: {api_base}", style="green")
+                    console.print(f"Default model: {model}", style="green")
+                    console.print(f"Response from model: {response.choices[0].message.content}", style="green")
+                    return 0
+                except Exception as e:
+                    console.print(f" Error connecting to OpenAI: {str(e)}", style="red")
+                    if not api_key:
+                        console.print("API key is required. Set in config.yaml or as OPENAI_API_KEY env var", style="yellow")
+                    return 1
+            except Exception as e:
+                console.print(f" Error: {str(e)}", style="red")
+                return 1
+                
+    elif selected_provider == "ollama":
+        # Get Ollama config
+        from synthetic_data_kit.utils.config import get_ollama_config
+        ollama_config = get_ollama_config(ctx.config)
+        api_base = api_base or ollama_config.get("api_base")
+        model = ollama_config.get("model")
+        
+        with console.status(f"Checking Ollama server at {api_base}..."):
+            try:
+                response = requests.get(f"{api_base}/api/tags", timeout=2)
+                if response.status_code == 200:
+                    models_data = response.json()
+                    available_models = [m.get('name', '') for m in models_data.get('models', [])]
+                    console.print(f" Ollama server is running at {api_base}", style="green")
+                    console.print(f"Available models: {available_models}", style="green")
+                    if model in available_models:
+                        console.print(f"Default model '{model}' is available", style="green")
+                    else:
+                        console.print(f"Warning: Default model '{model}' not found in available models", style="yellow")
+                    return 0
+                else:
+                    console.print(f" Ollama server is not available at {api_base}", style="red")
+                    console.print(f"Error: Server returned status code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                console.print(f" Ollama server is not available at {api_base}", style="red")
+                console.print(f"Error: {str(e)}")
+                
+            # Show instruction to start the server
+            console.print("\nTo start Ollama server, run:", style="yellow")
+            console.print(f"ollama serve", style="bold blue")
+            console.print(f"Then pull the model: ollama pull {model}", style="bold blue")
+            return 1
+            
     else:
         # Default to vLLM
         # Get vLLM server details
@@ -150,10 +248,10 @@ def system_check(
                     console.print(f"Available models: {response.json()}")
                     return 0
                 else:
-                    console.print(f"L vLLM server is not available at {api_base}", style="red")
+                    console.print(f" vLLM server is not available at {api_base}", style="red")
                     console.print(f"Error: Server returned status code: {response.status_code}")
             except requests.exceptions.RequestException as e:
-                console.print(f"L vLLM server is not available at {api_base}", style="red")
+                console.print(f" vLLM server is not available at {api_base}", style="red")
                 console.print(f"Error: {str(e)}")
                 
             # Show instruction to start the server
@@ -180,6 +278,12 @@ def ingest(
     multimodal: bool = typer.Option(
         False, "--multimodal", help="Enable multimodal parsing for supported file types"
     ),
+    page_range: Optional[str] = typer.Option(
+        None,
+        "--page-range",
+        "--page_range",
+        help="Inclusive page range for PDFs, e.g., '[100,115]' or '100-115'",
+    ),
 ):
     """
     Parse documents (PDF, HTML, YouTube, DOCX, PPT, TXT) into clean text.
@@ -196,6 +300,34 @@ def ingest(
     # Get output directory from args, then config, then default
     if output_dir is None:
         output_dir = get_path_config(ctx.config, "output", "parsed")
+
+    # Parse page_range string to tuple if provided
+    parsed_range = None
+    if page_range is not None:
+        rng = str(page_range).strip()
+        try:
+            if rng.startswith("["):
+                import json as _json
+                vals = _json.loads(rng)
+                if (
+                    isinstance(vals, list)
+                    and len(vals) == 2
+                    and all(isinstance(v, int) for v in vals)
+                ):
+                    parsed_range = (int(vals[0]), int(vals[1]))
+                else:
+                    raise ValueError
+            elif "-" in rng:
+                a, b = rng.split("-", 1)
+                parsed_range = (int(a), int(b))
+            else:
+                raise ValueError
+        except Exception:
+            console.print(
+                "❌ Invalid --page-range. Use '[start,end]' or 'start-end' with integers.",
+                style="red",
+            )
+            return 1
     
     try:
         # Check if input is a directory
@@ -244,6 +376,7 @@ def ingest(
                 config=ctx.config,
                 verbose=verbose,
                 multimodal=multimodal,
+                page_range=parsed_range,
             )
             
             # Return appropriate exit code
@@ -265,6 +398,7 @@ def ingest(
                     output_name=name,
                     config=ctx.config,
                     multimodal=multimodal,
+                    page_range=parsed_range,
                 )
             console.print(f"✅ Text successfully extracted to [bold]{output_path}[/bold]", style="green")
             return 0
@@ -280,6 +414,15 @@ def create(
     content_type: str = typer.Option(
         "qa", "--type", help="Type of content to generate [qa|summary|cot|cot-enhance|multimodal-qa]"
     ),
+    difficulty: Optional[str] = typer.Option(
+        None,
+        "--difficulty",
+        "-d",
+        help="Question difficulty [easy|medium|advanced] (applies to --type qa, cot, and multimodal-qa)",
+    ),
+    language: str = typer.Option(
+        "english", "--language", help="Output language: 'english' (default) or 'source' to match the input text language"
+    ),
     output_dir: Optional[Path] = typer.Option(
         None, "--output-dir", "-o", help="Where to save the output"
     ),
@@ -287,7 +430,7 @@ def create(
         None, "--api-base", help="VLLM API base URL"
     ),
     model: Optional[str] = typer.Option(
-        None, "--model", "-m", help="Model to use"
+        None, "--model", "-m", help="Model [llama-3.3-70b, gpt-4o, llama-4-maverick, llama3.2-3b]"
     ),
     num_pairs: Optional[int] = typer.Option(
         None, "--num-pairs", "-n", help="Target number of QA pairs or CoT examples to generate"
@@ -303,6 +446,12 @@ def create(
     ),
     preview: bool = typer.Option(
         False, "--preview", help="Preview files to be processed without actually processing them"
+    ),
+    provider: Optional[str] = typer.Option(
+        None, "--provider", help="LLM provider to use ('vllm', 'api-endpoint', 'openai', 'ollama')"
+    ),
+    page_range: Optional[str] = typer.Option(
+        None, "--page-range", "--page_range", help="Inclusive page range for PDFs, e.g., '[100,115]' or '100-115'"
     ),
 ):
     """
@@ -328,8 +477,8 @@ def create(
     from synthetic_data_kit.core.create import process_file
     from synthetic_data_kit.utils.directory_processor import is_directory, process_directory_create, get_directory_stats, CREATE_EXTENSIONS
     
-    # Check the LLM provider from config
-    provider = get_llm_provider(ctx.config)
+    # Check the LLM provider from CLI option or config
+    provider = provider or get_llm_provider(ctx.config)
     console.print(f"🔗 Using {provider} provider", style="green")
     
     if provider == "api-endpoint":
@@ -338,7 +487,32 @@ def create(
         api_base = api_base or api_endpoint_config.get("api_base")
         model = model or api_endpoint_config.get("model")
         # No server check needed for API endpoint
-    else:
+    elif provider == "openai":
+        # Use OpenAI config
+        from synthetic_data_kit.utils.config import get_openai_direct_config
+        openai_config = get_openai_direct_config(ctx.config)
+        api_base = api_base or openai_config.get("api_base")
+        model = model or openai_config.get("model")
+        # No server check needed for OpenAI
+    elif provider == "ollama":
+        # Use Ollama config
+        from synthetic_data_kit.utils.config import get_ollama_config
+        ollama_config = get_ollama_config(ctx.config)
+        api_base = api_base or ollama_config.get("api_base")
+        model = model or ollama_config.get("model")
+        
+        # Check Ollama server availability
+        try:
+            response = requests.get(f"{api_base}/api/tags", timeout=2)
+            if response.status_code != 200:
+                console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+                console.print("Please start the Ollama server", style="yellow")
+                return 1
+        except requests.exceptions.RequestException:
+            console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+            console.print("Please start the Ollama server", style="yellow")
+            return 1
+    elif provider == "vllm":
         # Use vLLM config
         vllm_config = get_vllm_config(ctx.config)
         api_base = api_base or vllm_config.get("api_base")
@@ -357,10 +531,42 @@ def create(
             console.print("Please start the VLLM server with:", style="yellow")
             console.print(f"vllm serve {model}", style="bold blue")
             return 1
+    else:
+        console.print(f"❌ Error: Unknown provider '{provider}'", style="red")
+        console.print("Supported providers: 'vllm', 'api-endpoint', 'openai', 'ollama'", style="yellow")
+        return 1
     
     # Get output directory from args, then config, then default
     if output_dir is None:
         output_dir = get_path_config(ctx.config, "output", "generated")
+
+    # Parse page_range string to tuple if provided
+    parsed_range = None
+    if page_range:
+        rng = page_range.strip()
+        try:
+            if rng.startswith("["):
+                import json as _json
+                vals = _json.loads(rng)
+                if (
+                    isinstance(vals, list)
+                    and len(vals) == 2
+                    and all(isinstance(v, int) for v in vals)
+                ):
+                    parsed_range = (int(vals[0]), int(vals[1]))
+                else:
+                    raise ValueError
+            elif "-" in rng:
+                a, b = rng.split("-", 1)
+                parsed_range = (int(a), int(b))
+            else:
+                raise ValueError
+        except Exception:
+            console.print(
+                "❌ Invalid --page-range. Use '[start,end]' or 'start-end' with integers.",
+                style="red",
+            )
+            return 1
     
     try:
         # Check if input is a directory
@@ -414,7 +620,10 @@ def create(
                 verbose=verbose,
                 provider=provider,
                 chunk_size=chunk_size,
-                chunk_overlap=chunk_overlap
+                chunk_overlap=chunk_overlap,
+                difficulty=difficulty,
+                language=language,
+                page_range=parsed_range,
             )
             
             # Return appropriate exit code
@@ -429,20 +638,42 @@ def create(
             if preview:
                 console.print("Preview mode is only available for directories. Processing single file...", style="yellow")
             
-            with console.status(f"Generating {content_type} content from {input}..."):
+            if verbose:
+                console.print(f"Generating {content_type} content from {input}...", style="blue")
                 output_path = process_file(
                     input,
-                    output_dir,
-                    ctx.config_path,
-                    api_base,
-                    model,
-                    content_type,
-                    num_pairs,
-                    verbose,
+                    output_dir=output_dir,
+                    config_path=ctx.config_path,
+                    api_base=api_base,
+                    model=model,
+                    content_type=content_type,
+                    num_pairs=num_pairs,
+                    verbose=verbose,
                     provider=provider,
                     chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap
+                    chunk_overlap=chunk_overlap,
+                    difficulty=difficulty,
+                    language=language,
+                    page_range=parsed_range,
                 )
+            else:
+                with console.status(f"Generating {content_type} content from {input}..."):
+                    output_path = process_file(
+                        input,
+                        output_dir=output_dir,
+                        config_path=ctx.config_path,
+                        api_base=api_base,
+                        model=model,
+                        content_type=content_type,
+                        num_pairs=num_pairs,
+                        verbose=verbose,
+                        provider=provider,
+                        chunk_size=chunk_size,
+                        chunk_overlap=chunk_overlap,
+                        difficulty=difficulty,
+                        language=language,
+                        page_range=parsed_range,
+                    )
             if output_path:
                 console.print(f"✅ Content saved to [bold]{output_path}[/bold]", style="green")
             return 0
@@ -465,13 +696,16 @@ def curate(
         None, "--api-base", help="VLLM API base URL"
     ),
     model: Optional[str] = typer.Option(
-        None, "--model", "-m", help="Model to use"
+        None, "--model", "-m", help="Model [llama-3.3-70b, gpt-4o, llama-4-maverick, llama3.2-3b]"
     ),
     verbose: bool = typer.Option(
         False, "--verbose", "-v", help="Show detailed output"
     ),
     preview: bool = typer.Option(
         False, "--preview", help="Preview files to be processed without actually processing them"
+    ),
+    provider: Optional[str] = typer.Option(
+        None, "--provider", help="LLM provider to use ('vllm', 'api-endpoint', 'openai', 'ollama')"
     ),
 ):
     """
@@ -487,8 +721,8 @@ def curate(
     from synthetic_data_kit.core.curate import curate_qa_pairs
     from synthetic_data_kit.utils.directory_processor import is_directory, process_directory_curate, get_directory_stats, CURATE_EXTENSIONS
     
-    # Check the LLM provider from config
-    provider = get_llm_provider(ctx.config)
+    # Check the LLM provider from CLI option or config
+    provider = provider or get_llm_provider(ctx.config)
     
     console.print(f"🔗 Using {provider} provider", style="green")
     
@@ -498,7 +732,32 @@ def curate(
         api_base = api_base or api_endpoint_config.get("api_base")
         model = model or api_endpoint_config.get("model")
         # No server check needed for API endpoint
-    else:
+    elif provider == "openai":
+        # Use OpenAI config
+        from synthetic_data_kit.utils.config import get_openai_direct_config
+        openai_config = get_openai_direct_config(ctx.config)
+        api_base = api_base or openai_config.get("api_base")
+        model = model or openai_config.get("model")
+        # No server check needed for OpenAI
+    elif provider == "ollama":
+        # Use Ollama config
+        from synthetic_data_kit.utils.config import get_ollama_config
+        ollama_config = get_ollama_config(ctx.config)
+        api_base = api_base or ollama_config.get("api_base")
+        model = model or ollama_config.get("model")
+        
+        # Check Ollama server availability
+        try:
+            response = requests.get(f"{api_base}/api/tags", timeout=2)
+            if response.status_code != 200:
+                console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+                console.print("Please start the Ollama server", style="yellow")
+                return 1
+        except requests.exceptions.RequestException:
+            console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+            console.print("Please start the Ollama server", style="yellow")
+            return 1
+    elif provider == "vllm":
         # Use vLLM config
         vllm_config = get_vllm_config(ctx.config)
         api_base = api_base or vllm_config.get("api_base")
@@ -517,6 +776,10 @@ def curate(
             console.print("Please start the VLLM server with:", style="yellow")
             console.print(f"vllm serve {model}", style="bold blue")
             return 1
+    else:
+        console.print(f"❌ Error: Unknown provider '{provider}'", style="red")
+        console.print("Supported providers: 'vllm', 'api-endpoint', 'openai', 'ollama'", style="yellow")
+        return 1
     
     try:
         # Check if input is a directory

@@ -9,7 +9,7 @@ import os
 import sys
 import requests
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 import importlib
 
 from synthetic_data_kit.utils.config import get_path_config
@@ -89,6 +89,7 @@ def process_file(
     output_name: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
     multimodal: bool = False,
+    page_range: Optional[Tuple[int, int]] = None,
 ) -> str:
     """Process a file using the appropriate parser
 
@@ -112,7 +113,11 @@ def process_file(
     parser = determine_parser(file_path, config, multimodal)
 
     # Parse the file
-    content = parser.parse(file_path)
+    # If PDF parser supports page_range, pass it through
+    try:
+        content = parser.parse(file_path, page_range=page_range)  # type: ignore[arg-type]
+    except TypeError:
+        content = parser.parse(file_path)
 
     # Generate output filename if not provided
     if not output_name:

@@ -10,33 +10,90 @@ import os
 from typing import List, Dict, Any, Optional
 
 def parse_qa_pairs(text: str) -> List[Dict[str, str]]:
-    """Parse QA pairs from LLM output with enhanced error handling"""
+    """Parse QA pairs from LLM output with enhanced error handling.
+
+    Robust to:
+    - Markdown code fences (```json ... ```)
+    - Arrays wrapped in other text; trailing commas
+    - Alternative field names: Arabic equivalents, short keys (q/a), or 'answers' arrays
+    - Either array of objects or repeated objects parsed by regex fallback
+    """
     verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
     
     if verbose:
         print(f"Parsing response of length {len(text)}")
     
+    def _normalize_item(item: Any) -> Optional[Dict[str, str]]:
+        """Normalize a single QA dict to {'question','answer'} if possible."""
+        if not isinstance(item, dict):
+            return None
+        # Known key candidates
+        q_keys = {
+            "question", "Question", "Q", "q",
+            "سؤال", "السؤال",
+            "prompt", "query",
+        }
+        a_keys = {
+            "answer", "Answer", "A", "a",
+            "إجابة", "الاجابة", "الإجابة", "جواب",
+            "response", "reply",
+        }
+        question = None
+        answer = None
+        # Direct mappings
+        for k in item.keys():
+            if k in q_keys and question is None:
+                question = item.get(k)
+            if k in a_keys and answer is None:
+                answer = item.get(k)
+        # Handle answers list or alt fields
+        if answer is None:
+            if isinstance(item.get("answers"), list) and item.get("answers"):
+                answer = item.get("answers")[0]
+            elif "completion" in item:
+                answer = item.get("completion")
+        if question and isinstance(question, str) and answer and isinstance(answer, str):
+            return {"question": question.strip(), "answer": answer.strip()}
+        return None
+
+    def _try_load_array(json_text: str) -> Optional[List[Dict[str, str]]]:
+        cleaned_text = re.sub(r'(\n\s*|\r\s*)', ' ', json_text)
+        cleaned_text = re.sub(r',\s*(\}|\])', r'\1', cleaned_text)
+        try:
+            parsed = json.loads(cleaned_text)
+            if isinstance(parsed, dict) and "qa_pairs" in parsed:
+                parsed = parsed["qa_pairs"]
+            if isinstance(parsed, list):
+                norm = []
+                for it in parsed:
+                    n = _normalize_item(it)
+                    if n:
+                        norm.append(n)
+                return norm
+        except json.JSONDecodeError:
+            return None
+        return None
+
     try:
-        # Try direct JSON parsing
+        # Prefer content inside code fences if present
+        code_blocks = re.findall(r'```(?:json)?\s*([\s\S]*?)```', text)
+        if code_blocks:
+            # Try last block first
+            for block in reversed(code_blocks):
+                result = _try_load_array(block)
+                if result is not None and len(result) > 0:
+                    if verbose:
+                        print(f"Parsed {len(result)} QA pairs from code fence")
+                    return result
+        # Fallback: find array brackets in whole text
         if '[' in text and ']' in text:
-            # Find the first [ and last ]
             start = text.find('[')
             end = text.rfind(']') + 1
-            json_text = text[start:end]
-            
-            # Try to clean up the JSON to fix common issues
-            cleaned_text = re.sub(r'(\n\s*|\r\s*)', ' ', json_text)  # Remove newlines and extra spaces
-            cleaned_text = re.sub(r',(\s*\}|\s*\])', r'\1', cleaned_text)  # Remove trailing commas
-            
-            try:
-                pairs = json.loads(cleaned_text)
+            result = _try_load_array(text[start:end])
+            if result is not None and len(result) > 0:
                 if verbose:
-                    print(f"Successfully parsed {len(pairs)} QA pairs")
-                return pairs
-            except json.JSONDecodeError as e:
-                if verbose:
-                    print(f"Direct JSON parsing failed: {e}")
-                    print(f"Attempted to parse: {cleaned_text[:200]}...")
+                    print(f"Successfully parsed {len(result)} QA pairs from array")
+                return result
     except Exception as e:
         if verbose:
             print(f"Error during JSON extraction: {e}")
@@ -55,6 +112,21 @@ def parse_qa_pairs(text: str) -> List[Dict[str, str]]:
         except Exception as e:
             if verbose:
                 print(f"Error extracting pair: {e}")
+
+    # If still empty, try to extract dicts with alternative keys and normalize
+    if not pairs:
+        try:
+            obj_matches = re.findall(r'(\{[^\{\}\[\]]+\})', text)
+            for om in obj_matches:
+                try:
+                    obj = json.loads(re.sub(r'\s*\n\s*', ' ', om))
+                    norm = _normalize_item(obj)
+                    if norm:
+                        pairs.append(norm)
+                except Exception:
+                    continue
+        except Exception:
+            pass
     
     if verbose:
         if pairs:
@@ -211,22 +283,28 @@ def parse_ratings(text: str, original_items: List[Dict[str, str]] = None) -> Lis
     
     # Method 3: Try using json5 if available (more lenient parser)
     try:
-        import json5
-        try:
-            parsed = json5.loads(text)
-            if isinstance(parsed, dict) and "rating" in parsed:
-                if verbose:
-                    print("Successfully parsed using json5 (single object)")
-                return [parsed]
-            elif isinstance(parsed, list) and all("rating" in item for item in parsed):
-                if verbose:
-                    print(f"Successfully parsed {len(parsed)} items using json5")
-                return parsed
-        except:
-            pass
-    except ImportError:
+        import importlib
+        json5_spec = importlib.util.find_spec("json5")
+        if json5_spec is not None:
+            json5 = importlib.import_module("json5")
+            try:
+                parsed = json5.loads(text)
+                if isinstance(parsed, dict) and "rating" in parsed:
+                    if verbose:
+                        print("Successfully parsed using json5 (single object)")
+                    return [parsed]
+                elif isinstance(parsed, list) and all("rating" in item for item in parsed):
+                    if verbose:
+                        print(f"Successfully parsed {len(parsed)} items using json5")
+                    return parsed
+            except Exception:
+                pass
+        else:
+            if verbose:
+                print("json5 not available")
+    except Exception:
         if verbose:
-            print("json5 not available")
+            print("json5 check failed")
     
     # If we reach here, try one last aggressive approach
     try:

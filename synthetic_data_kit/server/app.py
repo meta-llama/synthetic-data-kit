@@ -381,7 +381,7 @@ def edit_item(file_path):
         
         # Write back to the file
         with open(full_path, 'w') as f:
-            json.dump(file_content, f, indent=2)
+            json.dump(file_content, f, indent=2, ensure_ascii=False)
         
         return jsonify({"success": True, "message": "Item updated successfully"})
     except Exception as e:
@@ -429,7 +429,7 @@ def delete_item(file_path):
         
         # Write back to the file
         with open(full_path, 'w') as f:
-            json.dump(file_content, f, indent=2)
+            json.dump(file_content, f, indent=2, ensure_ascii=False)
         
         return jsonify({"success": True, "message": "Item deleted successfully"})
     except Exception as e:
