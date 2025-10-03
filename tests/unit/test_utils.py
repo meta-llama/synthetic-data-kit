@@ -7,7 +7,6 @@ import pytest
 from synthetic_data_kit.utils import config, text
 
 
-@pytest.mark.unit
 def test_split_into_chunks():
     """Test splitting text into chunks."""
     # Create multi-paragraph text
@@ -33,7 +32,21 @@ def test_split_into_chunks():
     # Empty text should produce an empty list, not a list with an empty string
     assert empty_chunks == []
 
+    non_paragraph_tests = [ 
+        "This is a sample example of inputs without paragraphs.\n" *16,
+        "This is a sample example of inputs without sentences." *16,
+    ]
+    # Using a small chunk size to ensure splitting
+    non_paragraph_chunks = text.split_into_chunks(non_paragraph_tests[0], chunk_size=20, overlap=10)
+    assert len(non_paragraph_chunks) > 1
+    assert len(non_paragraph_chunks) >= 16
 
+    non_sentence_chunks = text.split_into_chunks(non_paragraph_tests[1], chunk_size=20, overlap=5)
+    assert len(non_sentence_chunks) > 1
+    assert len(non_sentence_chunks) >=20
+
+
+test_split_into_chunks()
 @pytest.mark.unit
 def test_extract_json_from_text():
     """Test extracting JSON from text."""
