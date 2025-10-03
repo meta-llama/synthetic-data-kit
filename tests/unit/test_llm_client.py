@@ -8,9 +8,31 @@ from synthetic_data_kit.models.llm_client import LLMClient
 
 
 @pytest.mark.unit
-def test_llm_client_initialization(patch_config, test_env):
+def test_llm_client_initialization(patch_llm_client_config, test_env):
     """Test LLM client initialization with API endpoint provider."""
     with patch("synthetic_data_kit.models.llm_client.OpenAI") as mock_openai:
+        mock_client = MagicMock()
+        mock_openai.return_value = mock_client
+
+        # Get the mock config from the fixture
+        config = patch_llm_client_config.return_value
+        config["api-endpoint"]["azure_api_version"] = None
+
+        # Initialize client
+        client = LLMClient(provider="api-endpoint")
+
+        # Check that the client was initialized correctly
+        assert client.provider == "api-endpoint"
+        assert client.api_base is not None
+        assert client.model is not None
+        # Check that OpenAI client was initialized
+        assert mock_openai.called
+
+
+@pytest.mark.unit
+def test_azure_llm_client_initialization(patch_llm_client_config, test_env):
+    """Test LLM client initialization with API endpoint provider."""
+    with patch("synthetic_data_kit.models.llm_client.AzureOpenAI") as mock_openai:
         mock_client = MagicMock()
         mock_openai.return_value = mock_client
 
@@ -21,6 +43,7 @@ def test_llm_client_initialization(patch_config, test_env):
         assert client.provider == "api-endpoint"
         assert client.api_base is not None
         assert client.model is not None
+        assert client.azure_api_version is not None
         # Check that OpenAI client was initialized
         assert mock_openai.called
 
@@ -46,9 +69,58 @@ def test_llm_client_vllm_initialization(patch_config, test_env):
 
 
 @pytest.mark.unit
-def test_llm_client_chat_completion(patch_config, test_env):
+def test_llm_client_chat_completion(patch_llm_client_config, test_env):
     """Test LLM client chat completion with API endpoint provider."""
     with patch("synthetic_data_kit.models.llm_client.OpenAI") as mock_openai:
+        # Create a proper mock chain for OpenAI client
+        mock_client = MagicMock()
+        mock_chat = MagicMock()
+        mock_completions = MagicMock()
+        mock_create = MagicMock()
+
+        # Setup the nested mock structure
+        mock_openai.return_value = mock_client
+        mock_client.chat = mock_chat
+        mock_chat.completions = mock_completions
+        mock_completions.create = mock_create
+
+        # Setup mock response
+        mock_response = MagicMock()
+        mock_choice = MagicMock()
+        mock_message = MagicMock()
+
+        mock_message.content = "This is a test response"
+        mock_choice.message = mock_message
+        mock_response.choices = [mock_choice]
+
+        # Connect the create function to return our mock response
+        mock_create.return_value = mock_response
+
+        # Get the mock config from the fixture
+        config = patch_llm_client_config.return_value
+        config["api-endpoint"]["azure_api_version"] = None
+
+        # Initialize client
+        client = LLMClient(provider="api-endpoint")
+
+        # Test chat completion
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant."},
+            {"role": "user", "content": "What is synthetic data?"},
+        ]
+
+        response = client.chat_completion(messages, temperature=0.7)
+
+        # Check that the response is correct
+        assert response == "This is a test response"
+        # Check that OpenAI client was called
+        assert mock_create.called
+
+
+@pytest.mark.unit
+def test_azure_llm_client_chat_completion(patch_llm_client_config, test_env):
+    """Test LLM client chat completion with API endpoint provider."""
+    with patch("synthetic_data_kit.models.llm_client.AzureOpenAI") as mock_openai:
         # Create a proper mock chain for OpenAI client
         mock_client = MagicMock()
         mock_chat = MagicMock()
@@ -86,7 +158,7 @@ def test_llm_client_chat_completion(patch_config, test_env):
 
         # Check that the response is correct
         assert response == "This is a test response"
-        # Check that OpenAI client was called
+        # Check that AzureOpenAI client was called
         assert mock_create.called
 
 

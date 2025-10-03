@@ -161,6 +161,7 @@ class MockConfigFactory:
                 "api_base": "https://api.together.xyz/v1",
                 "api_key": api_key,
                 "model": model,
+                "azure_api_version": "2024-06-01",
                 "max_retries": 3,
                 "retry_delay": 1,
             },
@@ -231,8 +232,28 @@ def test_env():
 @pytest.fixture
 def patch_config(config_factory):
     """Patch the config loader to return a mock configuration."""
+    mock_config = config_factory.create_api_config()
+    
     with patch("synthetic_data_kit.utils.config.load_config") as mock_load_config:
-        mock_load_config.return_value = config_factory.create_api_config()
+        mock_load_config.return_value = mock_config
+        yield mock_load_config
+
+@pytest.fixture
+def patch_llm_client_config(config_factory):
+    """Patch the config loader to return a mock configuration."""
+    mock_config = config_factory.create_api_config()
+    
+    with patch("synthetic_data_kit.models.llm_client.load_config") as mock_load_config:
+        mock_load_config.return_value = mock_config
+        yield mock_load_config
+
+@pytest.fixture
+def patch_cli_config(config_factory):
+    """Patch the config loader to return a mock configuration."""
+    mock_config = config_factory.create_api_config()
+        
+    with patch("synthetic_data_kit.cli.load_config") as mock_load_config:
+        mock_load_config.return_value = mock_config
         yield mock_load_config
 
 

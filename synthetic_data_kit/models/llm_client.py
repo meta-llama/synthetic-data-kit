@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 # Try to import OpenAI, but handle case where it's not installed
 try:
     from openai import OpenAI
+    from openai import AzureOpenAI
     from openai.types.chat import ChatCompletion
     OPENAI_AVAILABLE = True
 except ImportError:
@@ -35,6 +36,7 @@ class LLMClient:
                  api_base: Optional[str] = None, 
                  api_key: Optional[str] = None,
                  model_name: Optional[str] = None,
+                 azure_api_version: Optional[str] = None,
                  max_retries: Optional[int] = None,
                  retry_delay: Optional[float] = None):
         """Initialize an LLM client that supports multiple providers
@@ -45,6 +47,7 @@ class LLMClient:
             api_base: Override API base URL from config
             api_key: Override API key for API endpoint (only needed for 'api-endpoint' provider)
             model_name: Override model name from config
+            azure_api_version: Override azure api version from config. Needed for Azure OpenAI endpoints
             max_retries: Override max retries from config
             retry_delay: Override retry delay from config
         """
@@ -74,7 +77,16 @@ class LLMClient:
             
             if not self.api_key and not self.api_base:  # Only require API key for official API
                 raise ValueError("API key is required for API endpoint provider. Set in config or API_ENDPOINT_KEY env var.")
-            
+
+            # Check for azure api version in environment variables
+            azure_api_version_key = os.environ.get('AZURE_API_VERSION')
+            print(f"AZURE_API_VERSION_KEY environment variable: {'Found' if azure_api_version_key else 'Not found'}")
+
+            # Set API VERSION key with priority: CLI arg > env var > config
+            self.azure_api_version = azure_api_version or azure_api_version_key or api_endpoint_config.get("azure_api_version")
+            if self.azure_api_version:
+                print(f"API version source: {'Environment variable' if azure_api_version_key else 'Config file'}")
+
             self.model = model_name or api_endpoint_config.get('model')
             self.max_retries = max_retries or api_endpoint_config.get('max_retries')
             self.retry_delay = retry_delay or api_endpoint_config.get('retry_delay')
@@ -115,8 +127,16 @@ class LLMClient:
         if self.api_base:
             print(f"Using API base URL: {self.api_base}")
             client_kwargs['base_url'] = self.api_base
-        
-        self.openai_client = OpenAI(**client_kwargs)
+
+        # Add Azure api version if provided (Needed for Azure OpenAI APIs)
+        print(f"Using API VERSION: {self.azure_api_version}")
+        if self.azure_api_version:
+            print(f"Using API base URL: {self.api_base}")
+            client_kwargs['api_version'] = self.azure_api_version
+            # OpenAI library differs for AzureOpenAI support
+            self.openai_client = AzureOpenAI(**client_kwargs)
+        else:
+            self.openai_client = OpenAI(**client_kwargs)
     
     def _check_vllm_server(self) -> tuple:
         """Check if the VLLM server is running and accessible"""
@@ -353,6 +373,7 @@ class LLMClient:
         """Process a single message set asynchronously using the OpenAI API"""
         try:
             from openai import AsyncOpenAI
+            from openai import AsyncAzureOpenAI
         except ImportError:
             raise ImportError("The 'openai' package is required for this functionality. Please install it using 'pip install openai>=1.0.0'.")
         
@@ -362,8 +383,14 @@ class LLMClient:
             client_kwargs['api_key'] = self.api_key
         if self.api_base:
             client_kwargs['base_url'] = self.api_base
-            
-        async_client = AsyncOpenAI(**client_kwargs)
+
+        # Add Azure api version if provided (Needed for Azure OpenAI APIs)
+        if self.azure_api_version:
+            client_kwargs['api_version'] = self.azure_api_version
+            # OpenAI library differs for Azure OpenAI support
+            async_client = AsyncAzureOpenAI(**client_kwargs)
+        else:
+            async_client = AsyncOpenAI(**client_kwargs)
         
         for attempt in range(self.max_retries):
             try:

@@ -539,6 +539,11 @@ paths:
     cleaned: "data/cleaned"
     final: "data/final"
 
+# LLM Provider configuration
+llm:
+  # Provider selection: "vllm" or "api-endpoint"
+  provider: "api-endpoint"
+
 # vllm: Configure VLLM server settings
 vllm:
   api_base: "http://localhost:8000/v1"
@@ -546,6 +551,15 @@ vllm:
   model: "meta-llama/Llama-3.3-70B-Instruct"
   max_retries: 3
   retry_delay: 1.0
+
+# API endpoint configuration
+api-endpoint:
+  api_base: "https://api.llama.com/v1" # Optional base URL for API endpoint (null for default API)
+  api_key: "llama-api-key"               # API key for API endpoint or compatible service (can use env var instead)
+  model: "Llama-4-Maverick-17B-128E-Instruct-FP8" # Default model to use
+  azure_api_version: "2024-06-01"      # API version needed for Azure OpenAI endpoints. Make it Null for other providers
+  max_retries: 3                       # Number of retries for API calls
+  retry_delay: 1.0                     # Initial delay between retries (seconds)
 
 # generation: Content generation parameters
 generation:
