@@ -48,6 +48,8 @@ class LLMClient:
             max_retries: Override max retries from config
             retry_delay: Override retry delay from config
         """
+        from dotenv import load_dotenv
+        load_dotenv()
         # Load config
         self.config = load_config(config_path)
         
@@ -65,7 +67,7 @@ class LLMClient:
             self.api_base = api_base or api_endpoint_config.get('api_base')
             
             # Check for environment variables
-            api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')
+            api_endpoint_key = os.getenv('GEMINI_API_KEY')
             print(f"API_ENDPOINT_KEY from environment: {'Found' if api_endpoint_key else 'Not found'}")
             
             # Set API key with priority: CLI arg > env var > config
@@ -167,6 +169,48 @@ class LLMClient:
         debug_mode = os.environ.get('SDK_DEBUG', 'false').lower() == 'true'
         if verbose:
             logger.info(f"Sending request to {self.provider} model {self.model}...")
+
+        if "gemini" in self.model:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+            headers = {
+                "x-goog-api-key": self.api_key,
+                "Content-Type": "application/json",
+            }
+
+            # Convert messages to Gemini format
+            contents = []
+            for msg in messages:
+                # Gemini API does not support system role, so we convert it to user role
+                role = msg["role"] if msg["role"] != "system" else "user"
+                contents.append({
+                    "role": role,
+                    "parts": [{"text": msg["content"]}]
+                })
+
+            data = {
+                "contents": contents,
+                "generationConfig": {
+                    "temperature": temperature,
+                    "maxOutputTokens": max_tokens,
+                    "topP": top_p,
+                }
+            }
+            for attempt in range(self.max_retries):
+                try:
+                    response = requests.post(url, headers=headers, data=json.dumps(data))
+                    response.raise_for_status()
+                    response_json = response.json()
+                    if "candidates" in response_json and len(response_json["candidates"]) > 0:
+                        candidate = response_json["candidates"][0]
+                        if "content" in candidate and "parts" in candidate["content"] and len(candidate["content"]["parts"]) > 0:
+                            return candidate["content"]["parts"][0]["text"]
+                    return "" # return empty string if no content found
+                except Exception as e:
+                    if verbose:
+                        logger.error(f"Gemini API error (attempt {attempt+1}/{self.max_retries}): {str(e)}")
+                    if attempt == self.max_retries - 1:
+                        raise Exception(f"Failed to get Gemini completion after {self.max_retries} attempts: {str(e)}")
+                    time.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
             
         for attempt in range(self.max_retries):
             try:
@@ -351,6 +395,11 @@ class LLMClient:
                                     verbose: bool,
                                     debug_mode: bool):
         """Process a single message set asynchronously using the OpenAI API"""
+        if "gemini" in self.model:
+            # This is a synchronous call inside an async function.
+            # Not ideal, but avoids adding new dependencies like httpx.
+            return self._openai_chat_completion(messages, temperature, max_tokens, top_p, verbose)
+
         try:
             from openai import AsyncOpenAI
         except ImportError:
