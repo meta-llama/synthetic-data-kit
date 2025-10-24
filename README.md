@@ -186,6 +186,7 @@ api-endpoint:
   api_base: "https://api.llama.com/v1"
   api_key: "llama-api-key"
   model: "Llama-4-Maverick-17B-128E-Instruct-FP8"
+  max_retries: 3 
   sleep_time: 0.5
 ```
 
