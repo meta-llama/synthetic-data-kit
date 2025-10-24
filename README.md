@@ -72,7 +72,17 @@ mkdir -p data/{input,parsed,generated,curated,final}
 mkdir -p data/{pdf,html,youtube,docx,ppt,txt,output,generated,cleaned,final}
 ```
 
-- You also need a LLM backend that you will utilize for generating your dataset, if using vLLM:
+- You also need a LLM backend that you will utilize for generating your dataset:
+- if using ollama:
+```bash
+# Download from https://ollama.com/download
+# get llamma model:
+ ollama pull llama3
+# Run Ollama
+ ollama serve
+# server is ruuning at http://localhost:11434
+```
+-  if using vLLM:
 
 ```bash
 # Start vLLM server

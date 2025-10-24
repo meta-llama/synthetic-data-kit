@@ -14,8 +14,11 @@ paths:
 
 # LLM Provider configuration
 llm:
+  provider: "ollama" #Using api-endpoint for Ollama
   # Provider selection: "vllm" or "api-endpoint"
-  provider: "api-endpoint"
+  #  provider: "api-endpoint" #Using api-endpoint for Llama API
+
+
 
 # VLLM server configuration
 vllm:
@@ -34,6 +37,15 @@ api-endpoint:
   max_retries: 3                       # Number of retries for API calls
   retry_delay: 1.0                     # Initial delay between retries (seconds)
   sleep_time: 0.5                      # Small delay in seconds between batches to avoid rate limits
+
+# Ollama server configuration (for Ollama via OpenAI-compatible API)
+ollama:
+  api_base: "http://localhost:11434/v1" # Ollama's OpenAI-compatible endpoint
+  api_key: "not-needed"                 # Ollama doesn't require an API key
+  model: "llama3:latest"                # Your Ollama model
+  max_retries: 3                        # Number of retries for API calls
+  retry_delay: 1.0                      # Initial delay between retries (seconds)
+
 
 # Ingest configuration
 ingest:
@@ -66,6 +78,39 @@ format:
   default: "jsonl"   # Default output format
   include_metadata: true  # Include metadata in output files
   pretty_json: true  # Use indentation in JSON output
+
+# Provider-specific settings for different use cases
+provider_configs:
+  # For local development and testing (using Ollama via api-endpoint)
+  local_dev:
+    provider: "api-endpoint"
+    api_base: "http://localhost:11434/v1"
+    api_key: "not-needed"
+    model: "llama3:latest"
+    generation:
+      temperature: 0.8
+      max_tokens: 2048
+      batch_size: 5    # Smaller batch for local resources
+
+  # For production with Llama API
+  production:
+    provider: "api-endpoint"
+    api_base: "https://api.llama.com/v1"
+    api_key: "llama_api_key"
+    model: "Llama-4-Maverick-17B-128E-Instruct-FP8"
+    generation:
+      temperature: 0.7
+      max_tokens: 4096
+      batch_size: 32
+
+  # For high-performance local inference
+  local_vllm:
+    provider: "vllm"
+    model: "meta-llama/Llama-3.3-70B-Instruct"
+    generation:
+      temperature: 0.7
+      max_tokens: 4096
+      batch_size: 64
 
 # Prompts for different tasks
 prompts:
@@ -173,3 +218,11 @@ prompts:
     
     Original conversations:
     {conversations}
+
+# Environment variable mappings (optional)
+env_vars:
+  API_ENDPOINT_KEY: "not-needed"          # For api-endpoint provider (Ollama doesn't need a key)
+  OLLAMA_HOST: "http://localhost:11434"   # For reference
+  VLLM_HOST: "http://localhost:8000"      # For vllm provider
+#  SDK_VERBOSE: 'True'
+
