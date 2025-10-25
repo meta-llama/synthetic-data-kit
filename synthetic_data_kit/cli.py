@@ -99,14 +99,41 @@ def system_check(
                     console.print("Install with: pip install openai>=1.0.0", style="yellow")
                     return 1
                 
-                # Create client
+                # If no API key is provided but an api_base is configured (common for
+                # local Ollama or proxies), try a direct HTTP request first so the
+                # CLI doesn't require the OpenAI SDK or OPENAI_API_KEY.
+                if api_base and not api_key:
+                    try:
+                        messages = [{"role": "user", "content": "Hello"}]
+                        payload = {
+                            "model": model,
+                            "messages": messages,
+                            "temperature": 0.1,
+                        }
+                        resp = requests.post(f"{api_base}/chat/completions", json=payload, timeout=10)
+                        if resp.status_code == 200:
+                            console.print(f" API endpoint access confirmed via HTTP: {api_base}", style="green")
+                            console.print(f"Default model: {model}", style="green")
+                            # Try to parse response content if present
+                            try:
+                                j = resp.json()
+                                console.print(f"Response from model: {j.get('choices',[{}])[0].get('message',{}).get('content')}", style="green")
+                            except Exception:
+                                pass
+                            return 0
+                        # If not 200, fallthrough to SDK-based attempt for more detailed error
+                    except requests.exceptions.RequestException:
+                        # Fall back to attempting with the SDK for a clearer error message
+                        pass
+
+                # Create client (SDK path)
                 client_kwargs = {}
                 if api_key:
                     client_kwargs['api_key'] = api_key
                 if api_base:
                     client_kwargs['base_url'] = api_base
-                
-                # Check API access
+
+                # Check API access using the OpenAI SDK
                 try:
                     client = OpenAI(**client_kwargs)
                     # Try a simple models request to check connectivity
@@ -134,6 +161,65 @@ def system_check(
             except Exception as e:
                 console.print(f"L Error: {str(e)}", style="red")
                 return 1
+    elif selected_provider == "ollama":
+        # Get Ollama config
+        from synthetic_data_kit.utils.config import get_ollama_config
+        ollama_config = get_ollama_config(ctx.config)
+        api_base = api_base or ollama_config.get("api_base")
+        model = ollama_config.get("model")
+        
+        with console.status(f"Checking Ollama server at {api_base}..."):
+            try:
+                # Check if Ollama server is running by hitting the tags endpoint
+                response = requests.get(f"{api_base}/api/tags", timeout=5)
+                if response.status_code == 200:
+                    console.print(f" Ollama server is running at {api_base}", style="green")
+                    tags_data = response.json()
+                    if 'models' in tags_data and tags_data['models']:
+                        console.print(f"Available models: {[m['name'] for m in tags_data['models']]}")
+                    else:
+                        console.print("No models found. Install a model with: ollama pull <model-name>", style="yellow")
+                    
+                    # Test generation with a simple prompt
+                    console.print(f"Testing generation with model: {model}", style="blue")
+                    test_payload = {
+                        "model": model,
+                        "prompt": "Hello",
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.1,
+                            "num_predict": 50
+                        }
+                    }
+                    
+                    try:
+                        gen_response = requests.post(f"{api_base}/api/generate", json=test_payload, timeout=30)
+                        if gen_response.status_code == 200:
+                            gen_data = gen_response.json()
+                            if 'response' in gen_data:
+                                console.print(f"Response from model: {gen_data['response'][:100]}...", style="green")
+                            console.print(" Ollama generation test successful", style="green")
+                            return 0
+                        else:
+                            console.print(f"Generation test failed with status: {gen_response.status_code}", style="yellow")
+                            console.print(f"Response: {gen_response.text}", style="yellow")
+                    except requests.exceptions.RequestException as e:
+                        console.print(f"Generation test failed: {str(e)}", style="yellow")
+                    
+                    # Server is running but generation failed - still consider it partially successful
+                    return 0
+                else:
+                    console.print(f"L Ollama server is not available at {api_base}", style="red")
+                    console.print(f"Error: Server returned status code: {response.status_code}")
+            except requests.exceptions.RequestException as e:
+                console.print(f"L Ollama server is not available at {api_base}", style="red")
+                console.print(f"Error: {str(e)}")
+                
+            # Show instruction to start the server
+            console.print("\nTo start Ollama, run:", style="yellow")
+            console.print("ollama serve", style="bold blue")
+            console.print(f"Then install a model: ollama pull {model}", style="bold blue")
+            return 1
     else:
         # Default to vLLM
         # Get vLLM server details
@@ -338,6 +424,26 @@ def create(
         api_base = api_base or api_endpoint_config.get("api_base")
         model = model or api_endpoint_config.get("model")
         # No server check needed for API endpoint
+    elif provider == "ollama":
+        # Use Ollama config
+        from synthetic_data_kit.utils.config import get_ollama_config
+        ollama_config = get_ollama_config(ctx.config)
+        api_base = api_base or ollama_config.get("api_base")
+        model = model or ollama_config.get("model")
+        
+        # Check Ollama server availability
+        try:
+            response = requests.get(f"{api_base}/api/tags", timeout=2)
+            if response.status_code != 200:
+                console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+                console.print("Please start the Ollama server with:", style="yellow")
+                console.print(f"ollama serve", style="bold blue")
+                return 1
+        except requests.exceptions.RequestException:
+            console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+            console.print("Please start the Ollama server with:", style="yellow")
+            console.print(f"ollama serve", style="bold blue")
+            return 1
     else:
         # Use vLLM config
         vllm_config = get_vllm_config(ctx.config)
@@ -498,6 +604,26 @@ def curate(
         api_base = api_base or api_endpoint_config.get("api_base")
         model = model or api_endpoint_config.get("model")
         # No server check needed for API endpoint
+    elif provider == "ollama":
+        # Use Ollama config
+        from synthetic_data_kit.utils.config import get_ollama_config
+        ollama_config = get_ollama_config(ctx.config)
+        api_base = api_base or ollama_config.get("api_base")
+        model = model or ollama_config.get("model")
+        
+        # Check Ollama server availability
+        try:
+            response = requests.get(f"{api_base}/api/tags", timeout=2)
+            if response.status_code != 200:
+                console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+                console.print("Please start the Ollama server with:", style="yellow")
+                console.print(f"ollama serve", style="bold blue")
+                return 1
+        except requests.exceptions.RequestException:
+            console.print(f"❌ Error: Ollama server not available at {api_base}", style="red")
+            console.print("Please start the Ollama server with:", style="yellow")
+            console.print(f"ollama serve", style="bold blue")
+            return 1
     else:
         # Use vLLM config
         vllm_config = get_vllm_config(ctx.config)
@@ -512,6 +638,11 @@ def curate(
                 console.print("Please start the VLLM server with:", style="yellow")
                 console.print(f"vllm serve {model}", style="bold blue")
                 return 1
+        except requests.exceptions.RequestException:
+            console.print(f"❌ Error: VLLM server not available at {api_base}", style="red")
+            console.print("Please start the VLLM server with:", style="yellow")
+            console.print(f"vllm serve {model}", style="bold blue")
+            return 1
         except requests.exceptions.RequestException:
             console.print(f"❌ Error: VLLM server not available at {api_base}", style="red")
             console.print("Please start the VLLM server with:", style="yellow")

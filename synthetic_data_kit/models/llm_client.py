@@ -13,7 +13,7 @@ import logging
 import asyncio
 from pathlib import Path
 
-from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider
+from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_ollama_config, get_llm_provider
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -55,33 +55,62 @@ class LLMClient:
         self.provider = provider or get_llm_provider(self.config)
         
         if self.provider == 'api-endpoint':
-            if not OPENAI_AVAILABLE:
-                raise ImportError("OpenAI package is not installed. Install with 'pip install openai>=1.0.0'")
-            
             # Load API endpoint configuration
             api_endpoint_config = get_openai_config(self.config)
-            
+
             # Set parameters, with CLI overrides taking precedence
             self.api_base = api_base or api_endpoint_config.get('api_base')
-            
-            # Check for environment variables
+
+            # Check for environment variables (support multiple names for compatibility)
             api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')
+            openai_key = os.environ.get('OPENAI_API_KEY')
             print(f"API_ENDPOINT_KEY from environment: {'Found' if api_endpoint_key else 'Not found'}")
-            
-            # Set API key with priority: CLI arg > env var > config
-            self.api_key = api_key or api_endpoint_key or api_endpoint_config.get('api_key')
-            print(f"Using API key: {'From CLI' if api_key else 'From env var' if api_endpoint_key else 'From config' if api_endpoint_config.get('api_key') else 'None'}")
-            
-            if not self.api_key and not self.api_base:  # Only require API key for official API
-                raise ValueError("API key is required for API endpoint provider. Set in config or API_ENDPOINT_KEY env var.")
-            
+            print(f"OPENAI_API_KEY from environment: {'Found' if openai_key else 'Not found'}")
+
+            # Set API key with priority: CLI arg > env var (API_ENDPOINT_KEY) > OPENAI_API_KEY > config
+            self.api_key = api_key or api_endpoint_key or openai_key or api_endpoint_config.get('api_key')
+            print(f"Using API key: {'From CLI' if api_key else 'From env var (API_ENDPOINT_KEY)' if api_endpoint_key else 'From env var (OPENAI_API_KEY)' if openai_key else 'From config' if api_endpoint_config.get('api_key') else 'None'}")
+
+            # Set other parameters
             self.model = model_name or api_endpoint_config.get('model')
             self.max_retries = max_retries or api_endpoint_config.get('max_retries')
             self.retry_delay = retry_delay or api_endpoint_config.get('retry_delay')
-            self.sleep_time = api_endpoint_config.get('sleep_time',0.5)
+            self.sleep_time = api_endpoint_config.get('sleep_time', 0.5)
+
+            # Decide whether we can/should use the OpenAI SDK client. If the SDK is installed and
+            # we have an API key (either provided or via OPENAI_API_KEY), prefer the SDK. Otherwise
+            # fall back to a direct requests-based implementation which works with local servers
+            # such as Ollama or local OpenAI-compatible proxies that don't require keys.
+            self.use_openai_client = False
+            if OPENAI_AVAILABLE and (self.api_key or os.environ.get('OPENAI_API_KEY')):
+                try:
+                    # Try initializing the SDK client; if it fails we'll fall back
+                    self._init_openai_client()
+                    self.use_openai_client = True
+                except Exception as e:
+                    logger.warning(f"OpenAI SDK client initialization failed, falling back to HTTP requests: {e}")
+                    self.use_openai_client = False
+            else:
+                # No SDK or no API key — fall back to requests for local endpoints (Ollama, etc.)
+                if not OPENAI_AVAILABLE:
+                    logger.info("OpenAI SDK not available; using direct HTTP requests for API endpoint provider")
+                else:
+                    logger.info("OpenAI SDK available but no API key found; using direct HTTP requests for API endpoint provider")
+        elif self.provider == 'ollama':
+            # Load Ollama configuration
+            ollama_config = get_ollama_config(self.config)
             
-            # Initialize OpenAI client
-            self._init_openai_client()
+            # Set parameters, with CLI overrides taking precedence
+            self.api_base = api_base or ollama_config.get('api_base')
+            self.model = model_name or ollama_config.get('model')
+            self.max_retries = max_retries or ollama_config.get('max_retries')
+            self.retry_delay = retry_delay or ollama_config.get('retry_delay')
+            self.sleep_time = ollama_config.get('sleep_time', 0.1)
+            
+            # Verify Ollama server is running
+            available, info = self._check_ollama_server()
+            if not available:
+                raise ConnectionError(f"Ollama server not available at {self.api_base}: {info}")
         else:  # Default to vLLM
             # Load vLLM configuration
             vllm_config = get_vllm_config(self.config)
@@ -128,6 +157,16 @@ class LLMClient:
         except requests.exceptions.RequestException as e:
             return False, f"Server connection error: {str(e)}"
     
+    def _check_ollama_server(self) -> tuple:
+        """Check if the Ollama server is running and accessible"""
+        try:
+            response = requests.get(f"{self.api_base}/api/tags", timeout=5)
+            if response.status_code == 200:
+                return True, response.json()
+            return False, f"Server returned status code: {response.status_code}"
+        except Exception as e:
+            return False, f"Server connection error: {str(e)}"
+    
     def chat_completion(self, 
                       messages: List[Dict[str, str]], 
                       temperature: float = None, 
@@ -154,6 +193,8 @@ class LLMClient:
         
         if self.provider == 'api-endpoint':
             return self._openai_chat_completion(messages, temperature, max_tokens, top_p, verbose)
+        elif self.provider == 'ollama':
+            return self._ollama_chat_completion(messages, temperature, max_tokens, top_p, verbose)
         else:  # Default to vLLM
             return self._vllm_chat_completion(messages, temperature, max_tokens, top_p, verbose)
     
@@ -164,6 +205,12 @@ class LLMClient:
                               top_p: float,
                               verbose: bool) -> str:
         """Generate a chat completion using the OpenAI API or compatible APIs"""
+        # If we couldn't initialize the OpenAI SDK client (e.g., local Ollama server
+        # without an API key), fall back to a requests-based implementation that
+        # posts directly to the configured API base.
+        if not getattr(self, 'use_openai_client', True):
+            return self._api_endpoint_chat_completion(messages, temperature, max_tokens, top_p, verbose)
+
         debug_mode = os.environ.get('SDK_DEBUG', 'false').lower() == 'true'
         if verbose:
             logger.info(f"Sending request to {self.provider} model {self.model}...")
@@ -278,6 +325,149 @@ class LLMClient:
                     raise Exception(f"Failed to get {self.provider} completion after {self.max_retries} attempts: {str(e)}")
                 
                 time.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
+
+    def _api_endpoint_chat_completion(self,
+                                     messages: List[Dict[str, str]],
+                                     temperature: float,
+                                     max_tokens: int,
+                                     top_p: float,
+                                     verbose: bool) -> str:
+        """Fallback HTTP implementation for OpenAI-compatible API endpoints (including local Ollama)."""
+        data = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "top_p": top_p,
+        }
+
+        headers = {"Content-Type": "application/json"}
+        # If an API key is available, add an Authorization header (for proxies that expect it)
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+
+        for attempt in range(self.max_retries):
+            try:
+                if verbose:
+                    logger.info(f"Sending HTTP request to API endpoint {self.api_base} for model {self.model}...")
+
+                response = requests.post(
+                    f"{self.api_base}/chat/completions",
+                    headers=headers,
+                    data=json.dumps(data),
+                    timeout=180,
+                )
+
+                if verbose:
+                    logger.info(f"Received response with status code: {response.status_code}")
+
+                response.raise_for_status()
+                resp_json = response.json()
+
+                # Try standard OpenAI-compatible response shape
+                try:
+                    return resp_json["choices"][0]["message"]["content"]
+                except Exception:
+                    # Try Llama/Ollama-like shapes
+                    if "completion_message" in resp_json:
+                        comp = resp_json["completion_message"]
+                        if isinstance(comp, dict) and "content" in comp:
+                            content = comp["content"]
+                            if isinstance(content, dict) and "text" in content:
+                                return content["text"]
+                            elif isinstance(content, str):
+                                return content
+
+                # If we couldn't extract, raise to trigger retry/debugging
+                raise ValueError("Could not extract content from API endpoint response")
+
+            except (requests.exceptions.RequestException, KeyError, IndexError, ValueError) as e:
+                if verbose:
+                    logger.error(f"API endpoint error (attempt {attempt+1}/{self.max_retries}): {e}")
+                if attempt == self.max_retries - 1:
+                    raise Exception(f"Failed to get API endpoint completion after {self.max_retries} attempts: {str(e)}")
+                time.sleep(self.retry_delay * (attempt + 1))
+    
+    def _ollama_chat_completion(self,
+                               messages: List[Dict[str, str]],
+                               temperature: float,
+                               max_tokens: int,
+                               top_p: float,
+                               verbose: bool) -> str:
+        """Generate a chat completion using the Ollama API"""
+        # Convert OpenAI-style messages to Ollama format
+        # Ollama expects a single prompt string, so we need to format the messages
+        prompt = self._format_messages_for_ollama(messages)
+        
+        data = {
+            "model": self.model,
+            "prompt": prompt,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens,
+                "top_p": top_p
+            },
+            "stream": False
+        }
+        
+        for attempt in range(self.max_retries):
+            try:
+                if verbose:
+                    logger.info(f"Sending request to Ollama model {self.model}...")
+                
+                response = requests.post(
+                    f"{self.api_base}/api/generate",
+                    headers={"Content-Type": "application/json"},
+                    data=json.dumps(data),
+                    timeout=180
+                )
+                
+                if verbose:
+                    logger.info(f"Received response with status code: {response.status_code}")
+                
+                response.raise_for_status()
+                response_json = response.json()
+                
+                # Ollama returns the response in the 'response' field
+                if 'response' in response_json:
+                    return response_json['response']
+                else:
+                    raise ValueError("No 'response' field in Ollama response")
+                    
+            except (requests.exceptions.RequestException, KeyError, ValueError) as e:
+                if verbose:
+                    logger.error(f"Ollama API error (attempt {attempt+1}/{self.max_retries}): {e}")
+                if attempt == self.max_retries - 1:
+                    raise Exception(f"Failed to get Ollama completion after {self.max_retries} attempts: {str(e)}")
+                time.sleep(self.retry_delay * (attempt + 1))
+            except Exception as e:
+                if verbose:
+                    logger.error(f"Ollama API error (attempt {attempt+1}/{self.max_retries}): {e}")
+                if attempt == self.max_retries - 1:
+                    raise Exception(f"Failed to get Ollama completion after {self.max_retries} attempts: {str(e)}")
+                time.sleep(self.retry_delay * (attempt + 1))
+    
+    def _format_messages_for_ollama(self, messages: List[Dict[str, str]]) -> str:
+        """Convert OpenAI-style messages to a single prompt string for Ollama"""
+        formatted_parts = []
+        
+        for message in messages:
+            role = message.get('role', 'user')
+            content = message.get('content', '')
+            
+            if role == 'system':
+                formatted_parts.append(f"System: {content}")
+            elif role == 'user':
+                formatted_parts.append(f"User: {content}")
+            elif role == 'assistant':
+                formatted_parts.append(f"Assistant: {content}")
+            else:
+                formatted_parts.append(f"{role.title()}: {content}")
+        
+        # Add a final "Assistant:" to prompt for a response
+        formatted_parts.append("Assistant:")
+        
+        return "\n\n".join(formatted_parts)
     
     def _vllm_chat_completion(self, 
                             messages: List[Dict[str, str]],
@@ -340,6 +530,8 @@ class LLMClient:
         
         if self.provider == 'api-endpoint':
             return self._openai_batch_completion(message_batches, temperature, max_tokens, top_p, batch_size, verbose)
+        elif self.provider == 'ollama':
+            return self._ollama_batch_completion(message_batches, temperature, max_tokens, top_p, batch_size, verbose)
         else:  # Default to vLLM
             return self._vllm_batch_completion(message_batches, temperature, max_tokens, top_p, batch_size, verbose)
     
@@ -523,11 +715,53 @@ class LLMClient:
                 # Process all messages in the batch concurrently
                 return await asyncio.gather(*tasks)
             
-            # Run the async batch processing
-            batch_results = asyncio.run(process_batch())
+            # If we're not using the OpenAI SDK client, run a synchronous requests-based
+            # batch here instead of the async SDK-based processing.
+            if not getattr(self, 'use_openai_client', True):
+                # Process each messages set synchronously
+                batch_results = []
+                for messages in batch_chunk:
+                    batch_results.append(self._api_endpoint_chat_completion(messages, temperature, max_tokens, top_p, verbose))
+            else:
+                # Run the async batch processing using the SDK
+                batch_results = asyncio.run(process_batch())
             results.extend(batch_results)
             
             # Small delay between batches to avoid rate limits
+            if i + batch_size < len(message_batches):
+                time.sleep(self.sleep_time)
+        
+        return results
+    
+    def _ollama_batch_completion(self,
+                                message_batches: List[List[Dict[str, str]]],
+                                temperature: float,
+                                max_tokens: int,
+                                top_p: float,
+                                batch_size: int,
+                                verbose: bool) -> List[str]:
+        """Process multiple message sets in batches using Ollama's API"""
+        results = []
+        
+        # Process message batches in chunks to avoid overloading the server
+        for i in range(0, len(message_batches), batch_size):
+            batch_chunk = message_batches[i:i+batch_size]
+            if verbose:
+                logger.info(f"Processing Ollama batch {i//batch_size + 1}/{(len(message_batches) + batch_size - 1) // batch_size} with {len(batch_chunk)} requests")
+            
+            try:
+                # Process each request sequentially for Ollama (it typically doesn't handle concurrent well)
+                batch_results = []
+                for messages in batch_chunk:
+                    result = self._ollama_chat_completion(messages, temperature, max_tokens, top_p, verbose)
+                    batch_results.append(result)
+                
+                results.extend(batch_results)
+                
+            except Exception as e:
+                raise Exception(f"Failed to process Ollama batch: {str(e)}")
+            
+            # Small delay between batches
             if i + batch_size < len(message_batches):
                 time.sleep(self.sleep_time)
         
