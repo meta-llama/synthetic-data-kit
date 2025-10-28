@@ -15,15 +15,30 @@ paths:
 # LLM Provider configuration
 llm:
   # Provider selection: "vllm" or "api-endpoint"
-  provider: "api-endpoint"
-
+  provider: "api-endpoint"  # Provider selection: "vllm", "api-endpoint", or "ollama"
 # VLLM server configuration
 vllm:
   api_base: "http://localhost:8000/v1" # Base URL for VLLM API
   port: 8000                           # Port for VLLM server
   model: "meta-llama/Llama-3.3-70B-Instruct" # Default model to use
   max_retries: 3                       # Number of retries for API calls
-  retry_delay: 1.0                     # Initial delay between retries (seconds)
+  retry_delay: 1.0
+
+# Ollama configuration
+ollama:
+  api_base: "http://localhost:11434/api" # Base URL for Ollama API
+  model: "hf.co/unsloth/Qwen3-30B-A3B-Instruct-2507-GGUF:Q8_K_XL"                       # Default model to use (e.g., llama3, codellama, mistral, etc.)
+  max_retries: 3                        # Number of retries for API calls
+  retry_delay: 1.0                      # Initial delay between retries (seconds)
+  timeout: 120                          # Request timeout in seconds
+  keep_alive: "5m"                      # How long to keep model loaded in memory (e.g., "5m", "1h")
+  num_ctx: 4096                         # Size of context window
+  temperature: 0.7                      # Model temperature (0.0-1.0)
+  top_p: 0.9                            # Nucleus sampling parameter
+  # Ollama-specific settings
+  host: "localhost"                     # Ollama server host
+  port: 11434                           # Ollama server port
+  pull_model: true                      # Whether to automatically pull the model if not available                     # Initial delay between retries (seconds)
   
 # API endpoint configuration
 api-endpoint:
