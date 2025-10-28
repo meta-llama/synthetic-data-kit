@@ -67,6 +67,7 @@ classifiers = [
 
 [project.scripts]
 synthetic-data-kit = "synthetic_data_kit.cli:app"
+synthetic-data-kit-mcp = "synthetic_data_kit.mcp_server:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["synthetic_data_kit"]
