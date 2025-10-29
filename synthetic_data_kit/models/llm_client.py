@@ -12,6 +12,7 @@ import os
 import logging
 import asyncio
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider
 
@@ -79,7 +80,7 @@ class LLMClient:
             self.max_retries = max_retries or api_endpoint_config.get('max_retries')
             self.retry_delay = retry_delay or api_endpoint_config.get('retry_delay')
             self.sleep_time = api_endpoint_config.get('sleep_time',0.5)
-            
+                        
             # Initialize OpenAI client
             self._init_openai_client()
         else:  # Default to vLLM
@@ -92,6 +93,9 @@ class LLMClient:
             self.max_retries = max_retries or vllm_config.get('max_retries')
             self.retry_delay = retry_delay or vllm_config.get('retry_delay')
             self.sleep_time = vllm_config.get('sleep_time',0.1)
+            self.max_concurrency = int(
+                os.environ.get("SDK_VLLM_MAX_CONCURRENCY", vllm_config.get("max_concurrency", 8))
+            )
             
             # No client to initialize for vLLM as we use requests directly
             # Verify server is running
@@ -533,6 +537,22 @@ class LLMClient:
         
         return results
     
+    def _vllm_post_once(self, request_data, verbose: bool) -> str:
+        """One /chat/completions call; returns the content string or raises."""
+        if verbose:
+            logger.info(f"Sending batch request to vLLM model {self.model}...")
+        response = requests.post(
+            f"{self.api_base}/chat/completions",
+            headers={"Content-Type": "application/json"},
+            data=json.dumps(request_data),
+            timeout=180,
+        )
+        if verbose:
+            logger.info(f"Received response with status code: {response.status_code}")
+        response.raise_for_status()
+        data = response.json()
+        return data["choices"][0]["message"]["content"]
+
     def _vllm_batch_completion(self,
                              message_batches: List[List[Dict[str, str]]],
                              temperature: float,
@@ -560,33 +580,27 @@ class LLMClient:
                     "top_p": top_p
                 })
             
+            # Run requests concurrently while preserving order and isolating errors
+            max_workers = max(1, min(self.max_concurrency, len(batch_requests)))
+            batch_results = [""] * len(batch_requests)
             try:
-                # For now, we run these in parallel with multiple requests
-                batch_results = []
-                for request_data in batch_requests:
-                    # Only print if verbose mode is enabled
-                    if verbose:
-                        logger.info(f"Sending batch request to vLLM model {self.model}...")
-                    
-                    response = requests.post(
-                        f"{self.api_base}/chat/completions",
-                        headers={"Content-Type": "application/json"},
-                        data=json.dumps(request_data),
-                        timeout=180  # Increased timeout for batch processing
-                    )
-                    
-                    if verbose:
-                        logger.info(f"Received response with status code: {response.status_code}")
-                    
-                    response.raise_for_status()
-                    content = response.json()["choices"][0]["message"]["content"]
-                    batch_results.append(content)
-                
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    future_to_index = {
+                        executor.submit(self._vllm_post_once, req, verbose): idx
+                        for idx, req in enumerate(batch_requests)
+                    }
+                    for future in as_completed(future_to_index):
+                        idx = future_to_index[future]
+                        try:
+                            batch_results[idx] = future.result()
+                        except Exception as e:
+                            # Don't fail the whole batch; record error in-place
+                            batch_results[idx] = f"ERROR: {e}"
                 results.extend(batch_results)
-                
-            except (requests.exceptions.RequestException, KeyError, IndexError) as e:
+            except Exception as e:
+                # If the executor itself failed for unexpected reasons
                 raise Exception(f"Failed to process vLLM batch: {str(e)}")
-            
+           
             # Small delay between batches
             if i + batch_size < len(message_batches):
                 time.sleep(self.sleep_time)
