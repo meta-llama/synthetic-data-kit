@@ -158,11 +158,19 @@ def test_curate_input_validation(patch_config, test_env):
         {
             "question": "What is synthetic data?",
             "answer": "Synthetic data is artificially generated data.",
-        },
+        }
+    ]
+
+    cot_examples = [
+        {
+            "question": "What is synthetic data?",
+            "reasoning": "Synthetic data is artificially generated data.",
+            "answer": "Synthetic data is artificially generated data.",
+        }
     ]
 
     with tempfile.NamedTemporaryFile(mode="w+", suffix=".json", delete=False) as f:
-        json.dump({"qa_pairs": qa_pairs}, f)
+        json.dump({"qa_pairs": qa_pairs, "cot_examples": cot_examples}, f)
         file_path = f.name
 
     # Create temporary output directory
@@ -182,7 +190,7 @@ def test_curate_input_validation(patch_config, test_env):
                 curate.curate_qa_pairs(input_path=empty_file_path, output_path=output_path)
 
             # Check that the error message is helpful
-            assert "No QA pairs found" in str(excinfo.value)
+            assert "No QA pairs or CoT examples found" in str(excinfo.value)
     finally:
         # Clean up
         if os.path.exists(file_path):
