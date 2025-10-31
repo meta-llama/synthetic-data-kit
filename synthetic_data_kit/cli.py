@@ -9,11 +9,15 @@ import os
 import typer
 from pathlib import Path
 from typing import Optional
-import requests
 from rich.console import Console
 from rich.table import Table
 
-from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider, get_path_config
+from synthetic_data_kit.utils.config import (
+    load_config,
+    get_llm_provider,
+    get_path_config,
+    get_provider_config,
+)
 from synthetic_data_kit.core.context import AppContext
 from synthetic_data_kit.server.app import run_server
 
@@ -28,7 +32,6 @@ console = Console()
 # Create app context
 ctx = AppContext()
 
-# Define global options
 @app.callback()
 def callback(
     config: Optional[Path] = typer.Option(
@@ -45,121 +48,91 @@ def callback(
 
 @app.command("system-check")
 def system_check(
-    api_base: Optional[str] = typer.Option(
-        None, "--api-base", help="API base URL to check"
-    ),
+    api_base: Optional[str] = typer.Option(None, "--api-base", help="API base URL to check"),
     provider: Optional[str] = typer.Option(
-        None, "--provider", help="Provider to check ('vllm' or 'api-endpoint')"
-    )
+        None, "--provider", help="Provider to check (defaults to config setting)"
+    ),
 ):
-    """
-    Check if the selected LLM provider's server is running.
-    """
-    # Check for API_ENDPOINT_KEY directly from environment
-    console.print("Environment variable check:", style="bold blue")
-    llama_key = os.environ.get('API_ENDPOINT_KEY')
-    console.print(f"API_ENDPOINT_KEY: {'Present' if llama_key else 'Not found'}")
-    # Debugging sanity test:
-    # if llama_key:
-        # console.print(f"  Value starts with: {llama_key[:10]}...")
-    
-    # To check the rename bug:
-    #console.print("Available environment variables:", style="bold blue")
-    #env_vars = [key for key in os.environ.keys() if 'API' in key or 'KEY' in key or 'TOKEN' in key]
-    #for var in env_vars:
-    #    console.print(f"  {var}")
-    #console.print("")
-    # Get provider from args or config
+    """Check if the selected LLM provider's server is running."""
     selected_provider = provider or get_llm_provider(ctx.config)
-    
-    if selected_provider == "api-endpoint":
-        # Get API endpoint config
-        api_endpoint_config = get_openai_config(ctx.config)
-        api_base = api_base or api_endpoint_config.get("api_base")
-        
-        # Check for environment variables
-        api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')
-        console.print(f"API_ENDPOINT_KEY environment variable: {'Found' if api_endpoint_key else 'Not found'}")
-        
-        # Set API key with priority: env var > config
-        api_key = api_endpoint_key or api_endpoint_config.get("api_key")
-        if api_key:
-            console.print(f"API key source: {'Environment variable' if api_endpoint_key else 'Config file'}")
-        
-        model = api_endpoint_config.get("model")
-        
-        # Check API endpoint access
-        with console.status(f"Checking API endpoint access..."):
+
+    if selected_provider != "openai-endpoint":
+        # TODO: Remove once other providers are supported
+        console.print(
+            f"⚠️  System check for provider '{selected_provider}' is not implemented yet.",
+            style="yellow",
+        )
+        return 1
+
+    provider_config = get_provider_config(ctx.config, selected_provider)
+
+    env_keys = ["API_ENDPOINT_KEY", "OPENAI_API_KEY"]
+    console.print("Environment variable check:", style="bold blue")
+    for key in env_keys:
+        console.print(f"{key}: {'Present' if os.environ.get(key) else 'Not found'}")
+
+    env_api_key = next((os.environ.get(key) for key in env_keys if os.environ.get(key)), None)
+
+    api_key = env_api_key or provider_config.get("api_key")
+    if api_key:
+        console.print(f"API key source: {'Environment variable' if env_api_key else 'Config file'}")
+
+    resolved_api_base = api_base or provider_config.get("api_base")
+    models_path = provider_config.get("models_path", "/models")
+    if not models_path.startswith("/"):
+        models_path = f"/{models_path}"
+    models_url = f"{resolved_api_base.rstrip('/')}{models_path}"
+
+    console.print(f"Checking {selected_provider} at {models_url}...", style="blue")
+
+    model = provider_config.get("model")
+    # Check API endpoint access
+    with console.status(f"Checking API endpoint access..."):
+        try:
+            # Try to import OpenAI
             try:
-                # Try to import OpenAI
-                try:
-                    from openai import OpenAI
-                except ImportError:
-                    console.print("L API endpoint package not installed", style="red")
-                    console.print("Install with: pip install openai>=1.0.0", style="yellow")
-                    return 1
-                
-                # Create client
-                client_kwargs = {}
-                if api_key:
-                    client_kwargs['api_key'] = api_key
-                if api_base:
-                    client_kwargs['base_url'] = api_base
-                
-                # Check API access
-                try:
-                    client = OpenAI(**client_kwargs)
-                    # Try a simple models request to check connectivity
-                    messages = [
-                        {"role": "user", "content": "Hello"}
-                    ]
-                    response = client.chat.completions.create(
-                        model=model,
-                        messages=messages, 
-                        temperature=0.1
-                    )
-                    console.print(f" API endpoint access confirmed", style="green")
-                    if api_base:
-                        console.print(f"Using custom API base: {api_base}", style="green")
-                    console.print(f"Default model: {model}", style="green")
-                    console.print(f"Response from model: {response.choices[0].message.content}", style="green")
-                    return 0
-                except Exception as e:
-                    console.print(f"L Error connecting to API endpoint: {str(e)}", style="red")
-                    if api_base:
-                        console.print(f"Using custom API base: {api_base}", style="yellow")
-                    if not api_key and not api_base:
-                        console.print("API key is required. Set in config.yaml or as API_ENDPOINT_KEY env var", style="yellow")
-                    return 1
-            except Exception as e:
-                console.print(f"L Error: {str(e)}", style="red")
+                from openai import OpenAI
+            except ImportError:
+                console.print("L API endpoint package not installed", style="red")
+                console.print("Install with: pip install openai>=1.0.0", style="yellow")
                 return 1
-    else:
-        # Default to vLLM
-        # Get vLLM server details
-        vllm_config = get_vllm_config(ctx.config)
-        api_base = api_base or vllm_config.get("api_base")
-        model = vllm_config.get("model")
-        port = vllm_config.get("port", 8000)
-        
-        with console.status(f"Checking vLLM server at {api_base}..."):
+            
+            # Create client
+            client_kwargs = {}
+            if api_key:
+                client_kwargs['api_key'] = api_key
+            if resolved_api_base:
+                client_kwargs['base_url'] = resolved_api_base
+            
+            # Check API access
             try:
-                response = requests.get(f"{api_base}/models", timeout=2)
-                if response.status_code == 200:
-                    console.print(f" vLLM server is running at {api_base}", style="green")
-                    console.print(f"Available models: {response.json()}")
-                    return 0
-                else:
-                    console.print(f"L vLLM server is not available at {api_base}", style="red")
-                    console.print(f"Error: Server returned status code: {response.status_code}")
-            except requests.exceptions.RequestException as e:
-                console.print(f"L vLLM server is not available at {api_base}", style="red")
-                console.print(f"Error: {str(e)}")
-                
-            # Show instruction to start the server
-            console.print("\nTo start the server, run:", style="yellow")
-            console.print(f"vllm serve {model} --port {port}", style="bold blue")
+                client = OpenAI(**client_kwargs)
+                # Try a simple models request to check connectivity
+                messages = [
+                    {"role": "user", "content": "Hello"}
+                ]
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages, 
+                    temperature=0.1
+                )
+                console.print(f" API endpoint access confirmed", style="green")
+                if api_base:
+                    console.print(f"Using custom API base: {api_base}", style="green")
+                console.print(f"Default model: {model}", style="green")
+                console.print(f"Response from model: {response.choices[0].message.content}", style="green")
+                return 0
+            except Exception as e:
+                console.print(f"L Error connecting to API endpoint: {str(e)}", style="red")
+                if api_base:
+                    console.print(f"Using custom API base: {api_base}", style="yellow")
+                if not api_key and not api_base:
+                    console.print("API key is required. Set in config.yaml or as API_ENDPOINT_KEY env var", style="yellow")
+                return 1
+        except Exception as e:
+            console.print(f"L Error: {str(e)}", style="red")
             return 1
+
 
 
 @app.command()
@@ -324,40 +297,27 @@ def create(
        - An array of conversation objects, each with a 'conversations' field
        - A direct array of conversation messages)
     """
-    import os
     from synthetic_data_kit.core.create import process_file
     from synthetic_data_kit.utils.directory_processor import is_directory, process_directory_create, get_directory_stats, CREATE_EXTENSIONS
     
-    # Check the LLM provider from config
     provider = get_llm_provider(ctx.config)
     console.print(f"🔗 Using {provider} provider", style="green")
-    
-    if provider == "api-endpoint":
-        # Use API endpoint config
-        api_endpoint_config = get_openai_config(ctx.config)
-        api_base = api_base or api_endpoint_config.get("api_base")
-        model = model or api_endpoint_config.get("model")
-        # No server check needed for API endpoint
-    else:
-        # Use vLLM config
-        vllm_config = get_vllm_config(ctx.config)
-        api_base = api_base or vllm_config.get("api_base")
-        model = model or vllm_config.get("model")
-        
-        # Check vLLM server availability
-        try:
-            response = requests.get(f"{api_base}/models", timeout=2)
-            if response.status_code != 200:
-                console.print(f"❌ Error: VLLM server not available at {api_base}", style="red")
-                console.print("Please start the VLLM server with:", style="yellow")
-                console.print(f"vllm serve {model}", style="bold blue")
-                return 1
-        except requests.exceptions.RequestException:
-            console.print(f"❌ Error: VLLM server not available at {api_base}", style="red")
-            console.print("Please start the VLLM server with:", style="yellow")
-            console.print(f"vllm serve {model}", style="bold blue")
-            return 1
-    
+
+    provider_config = get_provider_config(ctx.config, provider)
+
+    api_base = api_base or provider_config.get("api_base")
+    if not api_base:
+        console.print(
+            "❌ API base URL is not configured. Set it in config or provide --api-base.",
+            style="red",
+        )
+        return 1
+
+    model = model or provider_config.get("model")
+    if not model:
+        console.print("❌ No model configured for this provider.", style="red")
+        return 1
+
     # Get output directory from args, then config, then default
     if output_dir is None:
         output_dir = get_path_config(ctx.config, "output", "generated")
@@ -489,35 +449,24 @@ def curate(
     
     # Check the LLM provider from config
     provider = get_llm_provider(ctx.config)
-    
+
     console.print(f"🔗 Using {provider} provider", style="green")
-    
-    if provider == "api-endpoint":
-        # Use API endpoint config
-        api_endpoint_config = get_openai_config(ctx.config)
-        api_base = api_base or api_endpoint_config.get("api_base")
-        model = model or api_endpoint_config.get("model")
-        # No server check needed for API endpoint
-    else:
-        # Use vLLM config
-        vllm_config = get_vllm_config(ctx.config)
-        api_base = api_base or vllm_config.get("api_base")
-        model = model or vllm_config.get("model")
-        
-        # Check vLLM server availability
-        try:
-            response = requests.get(f"{api_base}/models", timeout=2)
-            if response.status_code != 200:
-                console.print(f"❌ Error: VLLM server not available at {api_base}", style="red")
-                console.print("Please start the VLLM server with:", style="yellow")
-                console.print(f"vllm serve {model}", style="bold blue")
-                return 1
-        except requests.exceptions.RequestException:
-            console.print(f"❌ Error: VLLM server not available at {api_base}", style="red")
-            console.print("Please start the VLLM server with:", style="yellow")
-            console.print(f"vllm serve {model}", style="bold blue")
-            return 1
-    
+
+    provider_config = get_provider_config(ctx.config, provider)
+
+    api_base = api_base or provider_config.get("api_base")
+    if not api_base:
+        console.print(
+            "❌ API base URL is not configured. Set it in config or provide --api-base.",
+            style="red",
+        )
+        return 1
+
+    model = model or provider_config.get("model")
+    if not model:
+        console.print("❌ No model configured for this provider.", style="red")
+        return 1
+
     try:
         # Check if input is a directory
         if is_directory(input):

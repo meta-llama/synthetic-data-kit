@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 import os
 
-from synthetic_data_kit.utils.config import DEFAULT_CONFIG_PATH, load_config, get_path_config
+from synthetic_data_kit.utils.config import DEFAULT_CONFIG_PATH, load_config
 
 class AppContext:
     """Context manager for global app state"""
@@ -45,3 +45,9 @@ class AppContext:
         
         for dir_path in output_dirs:
             os.makedirs(dir_path, exist_ok=True)
+
+
+    def update_config(self, new_config: Dict[str, Any]) -> None:
+        """Replace configuration at runtime (primarily for testing)."""
+        self.config = new_config
+        self._ensure_data_dirs()

@@ -81,6 +81,8 @@ def process_file(
     # Generate content based on type
     if file_path.endswith(".lance"):
         dataset = load_lance_dataset(file_path)
+        if not dataset:
+            raise ValueError(f"Failed to load Lance dataset from {file_path}")
         documents = dataset.to_table().to_pylist()
     else:
         documents = [{"text": read_json(file_path), "image": None}]
