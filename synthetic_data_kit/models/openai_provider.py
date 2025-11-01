@@ -33,13 +33,6 @@ class OpenAIEndpointProvider(BaseLLMProvider):
         env_api_key = next((os.environ.get(key) for key in env_keys if os.environ.get(key)), None)
 
         self.api_key = overrides.get("api_key") or env_api_key or config.get("api_key")
-        if not self.api_key and not self.require_api_key:
-            self.api_key = config.get("fallback_api_key", "EMPTY")
-        self.require_api_key = config.get("require_api_key", False)
-        if not self.api_key and self.require_api_key:
-            raise ValueError(
-                "API key is required for openai-endpoint provider. Set it in config or via environment variables."
-            )
 
         headers = config.get("headers", {})
         self.extra_headers = (

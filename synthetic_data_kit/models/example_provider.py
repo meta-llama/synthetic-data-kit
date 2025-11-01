@@ -41,7 +41,6 @@ class ExampleHTTPProvider(BaseLLMProvider):
         self.api_key = overrides.get("api_key") or env_api_key or config.get("api_key")
         self.api_key_header = config.get("api_key_header", "Authorization")
         self.api_key_scheme = config.get("api_key_scheme", "Bearer")
-        self.require_api_key = config.get("require_api_key", False)
 
         self.headers: Dict[str, str] = {"Content-Type": "application/json"}
         additional_headers = config.get("headers", {})
@@ -50,10 +49,7 @@ class ExampleHTTPProvider(BaseLLMProvider):
 
         if self.api_key:
             self._apply_api_key_header(self.headers)
-        elif self.require_api_key:
-            raise ValueError(
-                "API key is required for openai-endpoint provider. Set it in config or via environment variables."
-            )
+
 
         query_params = config.get("query_params", {})
         self.query_params = dict(query_params) if isinstance(query_params, dict) else {}
