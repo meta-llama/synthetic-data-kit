@@ -9,6 +9,8 @@ from contextlib import contextmanager
 
 import pytest
 
+from synthetic_data_kit.cli import ctx
+
 # Import our test utilities
 from tests.utils import TempDirectoryManager
 
@@ -153,17 +155,22 @@ class MockConfigFactory:
     """Factory for creating various mock configurations."""
 
     @staticmethod
-    def create_api_config(provider="api-endpoint", api_key="mock-key", model="mock-model"):
-        """Create a mock API endpoint configuration."""
-        return {
+    def create_api_config(provider="openai-endpoint", api_key="mock-key", model="mock-model"):
+        """Create a mock OpenAI-compatible endpoint configuration."""
+        endpoint_config = {
+            "api_base": "https://api.together.xyz/v1",
+            "api_key": api_key,
+            "model": model,
+            "max_retries": 3,
+            "retry_delay": 1,
+            "sleep_time": 0.5,
+            "http_request_timeout": 300,
+            "max_concurrent_requests": 32,
+        }
+
+        config_dict = {
             "llm": {"provider": provider},
-            "api-endpoint": {
-                "api_base": "https://api.together.xyz/v1",
-                "api_key": api_key,
-                "model": model,
-                "max_retries": 3,
-                "retry_delay": 1,
-            },
+            "openai-endpoint": endpoint_config,
             "generation": {
                 "temperature": 0.7,
                 "max_tokens": 4096,
@@ -176,6 +183,12 @@ class MockConfigFactory:
             },
         }
 
+        if provider in {"api-endpoint", "vllm"}:
+            # Include legacy keys to exercise backward compatibility paths
+            config_dict[provider] = endpoint_config
+
+        return config_dict
+
     @staticmethod
     def create_vllm_config(model="mock-vllm-model"):
         """Create a mock vLLM configuration."""
@@ -186,6 +199,18 @@ class MockConfigFactory:
                 "model": model,
                 "max_retries": 3,
                 "retry_delay": 1,
+                "sleep_time": 0.1,
+                "http_request_timeout": 180,
+            },
+            "openai-endpoint": {
+                "api_base": "http://localhost:8000",
+                "model": model,
+                "max_retries": 3,
+                "retry_delay": 1,
+                "sleep_time": 0.1,
+                "http_request_timeout": 180,
+                "require_api_key": False,
+                "server_start_hint": f"Start vLLM with: vllm serve {model}",
             },
             "generation": {
                 "temperature": 0.1,
@@ -231,17 +256,29 @@ def test_env():
 @pytest.fixture
 def patch_config(config_factory):
     """Patch the config loader to return a mock configuration."""
+    config = config_factory.create_api_config()
     with patch("synthetic_data_kit.utils.config.load_config") as mock_load_config:
-        mock_load_config.return_value = config_factory.create_api_config()
-        yield mock_load_config
+        mock_load_config.return_value = config
+        original_config = ctx.config
+        ctx.update_config(config)
+        try:
+            yield mock_load_config
+        finally:
+            ctx.update_config(original_config)
 
 
 @pytest.fixture
 def patch_vllm_config(config_factory):
     """Patch the config loader to return a vLLM configuration."""
+    config = config_factory.create_vllm_config()
     with patch("synthetic_data_kit.utils.config.load_config") as mock_load_config:
-        mock_load_config.return_value = config_factory.create_vllm_config()
-        yield mock_load_config
+        mock_load_config.return_value = config
+        original_config = ctx.config
+        ctx.update_config(config)
+        try:
+            yield mock_load_config
+        finally:
+            ctx.update_config(original_config)
 
 
 # Additional utility fixtures for common test patterns
@@ -300,15 +337,6 @@ def sample_conversations():
             ]
         },
     ]
-#New fixtures
-@pytest.fixture
-def cli_helper():
-    """Fixture providing CLI test helper with common utilities.
-    
-    This replaces manual CLI testing setup in functional tests.
-    """
-    from synthetic_data_kit.cli import app
-    return CLITestHelper(app)
 
 
 @pytest.fixture

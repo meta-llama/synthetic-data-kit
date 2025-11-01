@@ -118,12 +118,16 @@ def test_load_config(tmpdir):
 def test_get_llm_provider(mock_config):
     """Test getting the LLM provider from config."""
     provider = config.get_llm_provider(mock_config)
-    assert provider == "api-endpoint"
+    assert provider == "openai-endpoint"
 
     # Test with empty config
     empty_config = {}
     default_provider = config.get_llm_provider(empty_config)
-    assert default_provider == "vllm"  # Should return the default provider
+    assert default_provider == "openai-endpoint"
+
+    legacy_config = {"llm": {"provider": "api-endpoint"}}
+    normalized = config.get_llm_provider(legacy_config)
+    assert normalized == "api-endpoint"
 
 
 @pytest.mark.unit

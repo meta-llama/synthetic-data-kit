@@ -91,7 +91,9 @@ synthetic-data-kit/
 │   │   └── save_as.py        # Format conversion
 │   ├── models/               # LLM integration
 │   │   ├── __init__.py
-│   │   └── llm_client.py     # VLLM client
+│   │   └── llm_client.py     # common LLM interface
+|   │   ├── base.py           # Base class for providers
+│   │   └── openai_provider.py # openai-compatible
 │   ├── parsers/              # Document parsers
 │   │   ├── __init__.py
 │   │   ├── pdf_parser.py     # PDF parser
@@ -142,6 +144,7 @@ classDiagram
         +api_base: str
         +model: str
         +max_retries: int
+        +http_request_timeout: int
         +retry_delay: float
         +config: Dict
         +_check_server() tuple
@@ -539,13 +542,16 @@ paths:
     cleaned: "data/cleaned"
     final: "data/final"
 
-# vllm: Configure VLLM server settings
-vllm:
-  api_base: "http://localhost:8000/v1"
-  port: 8000
-  model: "meta-llama/Llama-3.3-70B-Instruct"
-  max_retries: 3
-  retry_delay: 1.0
+# OpenAI-compatible endpoint configuration
+openai-endpoint:
+  api_base: "https://api.llama.com/v1"    # Base URL for OpenAI-compatible API
+  api_key: "llama-api-key"                # API key for the endpoint (can also use env vars)
+  model: "Llama-4-Maverick-17B-128E-Instruct-FP8" # Default model to use
+  max_retries: 3                          # Number of retries for API calls
+  retry_delay: 1.0                        # Initial delay between retries (seconds)
+  sleep_time: 0.5                         # Pause between batch chunks (seconds)
+  http_request_timeout: 300               # Timeout for HTTP requests (seconds)
+  max_concurrent_requests: 32   
 
 # generation: Content generation parameters
 generation:

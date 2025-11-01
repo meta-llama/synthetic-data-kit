@@ -121,7 +121,15 @@ class MockConfigHelper:
                 }
             },
             'llm': {
-                'provider': 'vllm'
+                'provider': 'openai-endpoint'
+            },
+            'openai-endpoint': {
+                'api_base': 'http://localhost:8000/v1',
+                'model': 'test-model',
+                'max_retries': 3,
+                'retry_delay': 1,
+                'sleep_time': 0.1,
+                'http_request_timeout': 180,
             },
             'vllm': {
                 'api_base': 'http://localhost:8000/v1',
@@ -133,12 +141,14 @@ class MockConfigHelper:
     def create_api_endpoint_config() -> Dict[str, Any]:
         """Create a mock configuration for API endpoint provider."""
         config = MockConfigHelper.create_default_config()
-        config['llm']['provider'] = 'api-endpoint'
-        config['api-endpoint'] = {
+        config['llm']['provider'] = 'openai-endpoint'
+        config['openai-endpoint'] = {
             'api_base': 'https://api.example.com/v1',
             'model': 'gpt-4',
-            'api_key': 'test-key'
+            'api_key': 'test-key',
         }
+        # Provide legacy alias for compatibility checks
+        config['api-endpoint'] = config['openai-endpoint']
         return config
 
 

@@ -155,11 +155,11 @@ The toolkit uses a YAML configuration file (default: `configs/config.yaml`).
 Note, this can be overridden via either CLI arguments OR passing a custom YAML file
 
 ```yaml
-# Example configuration using vLLM
+# Example configuration using local openai compatible api (i.e. via `vllm serve`)
 llm:
-  provider: "vllm"
+  provider: "openai-endpoint"
 
-vllm:
+openai-endpoint:
   api_base: "http://localhost:8000/v1"
   model: "meta-llama/Llama-3.3-70B-Instruct"
   sleep_time: 0.1
@@ -175,12 +175,11 @@ curate:
   batch_size: 8
 ```
 
-or using an API endpoint:
-
+or using an external openai compatible api:
 ```yaml
 # Example configuration using the llama API
 llm:
-  provider: "api-endpoint"
+  provider: "openai-endpoint"
 
 api-endpoint:
   api_base: "https://api.llama.com/v1"
@@ -455,6 +454,7 @@ graph LR
 If you encounter CUDA out of memory errors:
 - Use a smaller model
 - Reduce batch size in config
+- Reduce sequence length / max model length (`--max_model_len 12000`)
 - Start vLLM with `--gpu-memory-utilization 0.85`
 
 ### JSON Parsing Issues

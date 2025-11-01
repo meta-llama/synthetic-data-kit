@@ -12,41 +12,38 @@ from synthetic_data_kit.cli import app
 
 
 @pytest.mark.functional
-def test_system_check_command_vllm(patch_config):
-    """Test the system-check command with vLLM provider."""
+@pytest.mark.parametrize("provider", ["vllm", "api-endpoint"])
+def test_system_check_command_unsupported_provider(provider, patch_config, test_env):
+    """Unsupported providers should exit with a warning message."""
     runner = CliRunner()
 
-    # Mock the requests.get to simulate a vLLM server response
-    with patch("requests.get") as mock_get:
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = ["Llama-3-70B-Instruct"]
-        mock_get.return_value = mock_response
+    result = runner.invoke(app, ["system-check", "--provider", provider])
 
-        result = runner.invoke(app, ["system-check", "--provider", "vllm"])
-
-        assert result.exit_code == 0
-        # Check for general success rather than specific message
-        assert "vLLM server is running" in result.stdout
-        mock_get.assert_called_once()
+    assert f"System check for provider '{provider}' is not implemented yet." in result.stdout
 
 
 @pytest.mark.functional
-def test_system_check_command_api_endpoint(patch_config, test_env):
-    """Test the system-check command with API endpoint provider."""
+def test_system_check_command_openai_endpoint(patch_config, test_env):
+    """System check should call the OpenAI SDK when using the default provider."""
     runner = CliRunner()
 
-    # Mock OpenAI API client
     with patch("openai.OpenAI") as mock_openai:
         mock_client = MagicMock()
-        mock_client.models.list.return_value = ["mock-model"]
         mock_openai.return_value = mock_client
+        mock_response = MagicMock()
+        mock_choice = MagicMock()
+        mock_message = MagicMock(content="hello world")
+        mock_choice.message = mock_message
+        mock_response.choices = [mock_choice]
+        mock_client.chat.completions.create.return_value = mock_response
 
-        result = runner.invoke(app, ["system-check", "--provider", "api-endpoint"])
+        result = runner.invoke(app, ["system-check"])
 
-        # Just check exit code, not specific message since it varies
-        assert result.exit_code == 0
-        mock_openai.assert_called_once()
+    assert result.exit_code == 0
+    assert "API key source" in result.stdout
+    assert "API endpoint access confirmed" in result.stdout
+    assert "hello world" in result.stdout
+    mock_client.chat.completions.create.assert_called_once()
 
 
 @pytest.mark.functional
