@@ -5,6 +5,8 @@
 # the root directory of this source tree.
 
 import lance
+from lance.dataset import write_dataset as lance_write_dataset
+from lance.dataset import LanceDataset
 import pyarrow as pa
 from typing import List, Dict, Any, Optional
 import os
@@ -30,7 +32,7 @@ def create_lance_dataset(
         os.makedirs(output_dir)
 
     table = pa.Table.from_pylist(data, schema=schema)
-    lance.write_dataset(table, output_path, mode="overwrite")
+    lance_write_dataset(table, output_path, mode="overwrite")
 
 def load_lance_dataset(
     dataset_path: str
@@ -45,4 +47,4 @@ def load_lance_dataset(
     """
     if not os.path.exists(dataset_path):
         return None
-    return lance.dataset(dataset_path)
+    return LanceDataset(dataset_path)
