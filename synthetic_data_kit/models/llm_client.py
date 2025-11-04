@@ -92,13 +92,22 @@ class LLMClient:
             self.max_retries = max_retries or vllm_config.get('max_retries')
             self.retry_delay = retry_delay or vllm_config.get('retry_delay')
             self.sleep_time = vllm_config.get('sleep_time',0.1)
+            self.http_request_timeout = vllm_config.get('http_request_timeout', 180)
+            self.api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')
             
+            print(f"API_ENDPOINT_KEY from environment: {'Found' if self.api_endpoint_key else 'Not found'}")
+
             # No client to initialize for vLLM as we use requests directly
             # Verify server is running
             available, info = self._check_vllm_server()
             if not available:
                 raise ConnectionError(f"VLLM server not available at {self.api_base}: {info}")
-    
+
+    def _maybe_auth_header(self, other: Dict[str, str] = {}) -> Dict[str, str]:
+        if self.api_endpoint_key:
+            return other | {"Authorization": f"Bearer {self.api_endpoint_key}"}
+        return other
+
     def _init_openai_client(self):
         """Initialize OpenAI client with appropriate configuration"""
         client_kwargs = {}
@@ -121,7 +130,11 @@ class LLMClient:
     def _check_vllm_server(self) -> tuple:
         """Check if the VLLM server is running and accessible"""
         try:
-            response = requests.get(f"{self.api_base}/models", timeout=5)
+            response = requests.get(
+                f"{self.api_base}/models",
+                headers=self._maybe_auth_header({}),
+                timeout=5,
+            )
             if response.status_code == 200:
                 return True, response.json()
             return False, f"Server returned status code: {response.status_code}"
@@ -302,7 +315,9 @@ class LLMClient:
                 
                 response = requests.post(
                     f"{self.api_base}/chat/completions",
-                    headers={"Content-Type": "application/json"},
+                    headers=self._maybe_auth_header({
+                        "Content-Type": "application/json",
+                    }),
                     data=json.dumps(data),
                     timeout=180  # Increased timeout to 180 seconds
                 )
