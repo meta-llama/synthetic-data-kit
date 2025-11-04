@@ -141,10 +141,15 @@ def system_check(
         api_base = api_base or vllm_config.get("api_base")
         model = vllm_config.get("model")
         port = vllm_config.get("port", 8000)
+        api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')
         
         with console.status(f"Checking vLLM server at {api_base}..."):
             try:
-                response = requests.get(f"{api_base}/models", timeout=2)
+                response = requests.get(
+                    f"{api_base}/models",
+                    headers={"Authorization": f"Bearer {api_endpoint_key}"} if api_endpoint_key else {},
+                    timeout=5,
+                )
                 if response.status_code == 200:
                     console.print(f" vLLM server is running at {api_base}", style="green")
                     console.print(f"Available models: {response.json()}")
@@ -343,10 +348,15 @@ def create(
         vllm_config = get_vllm_config(ctx.config)
         api_base = api_base or vllm_config.get("api_base")
         model = model or vllm_config.get("model")
-        
+        api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')
+
         # Check vLLM server availability
         try:
-            response = requests.get(f"{api_base}/models", timeout=2)
+            response = requests.get(
+                f"{api_base}/models",
+                headers={"Authorization": f"Bearer {api_endpoint_key}"} if api_endpoint_key else {},
+                timeout=2
+            )
             if response.status_code != 200:
                 console.print(f"❌ Error: VLLM server not available at {api_base}", style="red")
                 console.print("Please start the VLLM server with:", style="yellow")
@@ -503,10 +513,15 @@ def curate(
         vllm_config = get_vllm_config(ctx.config)
         api_base = api_base or vllm_config.get("api_base")
         model = model or vllm_config.get("model")
-        
+        api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')       
+
         # Check vLLM server availability
         try:
-            response = requests.get(f"{api_base}/models", timeout=2)
+            response = requests.get(
+                f"{api_base}/models",
+                headers={"Authorization": f"Bearer {api_endpoint_key}"} if api_endpoint_key else {},
+                timeout=2,
+            )
             if response.status_code != 200:
                 console.print(f"❌ Error: VLLM server not available at {api_base}", style="red")
                 console.print("Please start the VLLM server with:", style="yellow")
