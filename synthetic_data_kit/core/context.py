@@ -21,8 +21,8 @@ class AppContext:
         # Ensure data directories exist
         self._ensure_data_dirs()
         
-    # Why have separeate folders? Yes ideally you should just be able to ingest an input folder and have everything being ingested and converted BUT
-    # Managing context window is hard and there are more edge cases which needs to be handled carefully
+    # Why have separate folders? Yes, ideally, you should just be able to ingest an input folder and have everything being ingested and converted BUT
+    # Managing context window is hard and there are more edge cases that need to be handled carefully
     # it's also easier to debug in alpha if we have multiple files. 
     def _ensure_data_dirs(self):
         """Ensure data directories exist based on configuration"""
@@ -30,7 +30,7 @@ class AppContext:
         config = load_config(self.config_path)
         paths_config = config.get('paths', {})
         
-        # Create input directory - handle new config format where input is a string
+        # Create input directory - handle a new config format where input is a string
         input_dir = paths_config.get('input', 'data/input')
         os.makedirs(input_dir, exist_ok=True)
         

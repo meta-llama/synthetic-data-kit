@@ -8,4 +8,6 @@ __pycache__
 data/\ndata/\n*.pdf
 .venv-ci/
 data/
-example_output
+example_output!/docs/Why_lang_models_hallucinate.pdf
+!/docs/Why_lang_models_hallucinate.pdf
+vllm/

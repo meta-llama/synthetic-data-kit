@@ -13,7 +13,7 @@ import requests
 from rich.console import Console
 from rich.table import Table
 
-from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider, get_path_config
+from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider, get_path_config, get_ollama_config
 from synthetic_data_kit.core.context import AppContext
 from synthetic_data_kit.server.app import run_server
 
@@ -338,6 +338,14 @@ def create(
         api_base = api_base or api_endpoint_config.get("api_base")
         model = model or api_endpoint_config.get("model")
         # No server check needed for API endpoint
+
+    if provider == "ollama":
+        # Use Ollama config
+        ollama_config = get_ollama_config(ctx.config)
+        api_base = api_base or ollama_config.get("api_base")
+        model = model or ollama_config.get("model")
+        # No server check needed for Ollama endpoint
+
     else:
         # Use vLLM config
         vllm_config = get_vllm_config(ctx.config)
@@ -498,6 +506,14 @@ def curate(
         api_base = api_base or api_endpoint_config.get("api_base")
         model = model or api_endpoint_config.get("model")
         # No server check needed for API endpoint
+
+    if provider == "ollama":
+        # Use Ollama config
+        ollama_config = get_ollama_config(ctx.config)
+        api_base = api_base or ollama_config.get("api_base")
+        model = model or ollama_config.get("model")
+        # No server check needed for Ollama endpoint
+
     else:
         # Use vLLM config
         vllm_config = get_vllm_config(ctx.config)

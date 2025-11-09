@@ -13,7 +13,7 @@ import logging
 import asyncio
 from pathlib import Path
 
-from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider
+from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider, get_ollama_config
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -82,6 +82,24 @@ class LLMClient:
             
             # Initialize OpenAI client
             self._init_openai_client()
+
+        if self.provider=='ollama':
+            # Load Ollama configuration
+            ollama_config = get_ollama_config(self.config)
+
+            # Set parameters, with CLI overrides taking precedence
+            self.api_base = api_base or ollama_config.get('api_base')
+            self.model = model_name or ollama_config.get('model')
+            self.max_retries = max_retries or ollama_config.get('max_retries')
+            self.retry_delay = retry_delay or ollama_config.get('retry_delay')
+            self.sleep_time = ollama_config.get('sleep_time',0.1)
+
+            # No client to initialize for Ollama as we use requests directly
+            # Verify server is running
+            available, info = self._check_llm_server()
+            if not available:
+                raise ConnectionError(f"Ollama server not available at {self.api_base}: {info}")
+
         else:  # Default to vLLM
             # Load vLLM configuration
             vllm_config = get_vllm_config(self.config)
@@ -95,7 +113,7 @@ class LLMClient:
             
             # No client to initialize for vLLM as we use requests directly
             # Verify server is running
-            available, info = self._check_vllm_server()
+            available, info = self._check_llm_server()
             if not available:
                 raise ConnectionError(f"VLLM server not available at {self.api_base}: {info}")
     
@@ -118,8 +136,28 @@ class LLMClient:
         
         self.openai_client = OpenAI(**client_kwargs)
     
-    def _check_vllm_server(self) -> tuple:
-        """Check if the VLLM server is running and accessible"""
+    # def _check_vllm_server(self) -> tuple:
+    #     """Check if the VLLM server is running and accessible"""
+    #     try:
+    #         response = requests.get(f"{self.api_base}/models", timeout=5)
+    #         if response.status_code == 200:
+    #             return True, response.json()
+    #         return False, f"Server returned status code: {response.status_code}"
+    #     except requests.exceptions.RequestException as e:
+    #         return False, f"Server connection error: {str(e)}"
+    #
+    # def _check_ollama_server(self) -> tuple:
+    #     """Check if the Ollama server is running and accessible"""
+    #     try:
+    #         response = requests.get(f"{self.api_base}/models", timeout=5)
+    #         if response.status_code == 200:
+    #             return True, response.json()
+    #         return False, f"Server returned status code: {response.status_code}"
+    #     except requests.exceptions.RequestException as e:
+    #         return False, f"Server connection error: {str(e)}"
+
+    def _check_llm_server(self) -> tuple:
+        """Check if the vllm or Ollama server is running and accessible"""
         try:
             response = requests.get(f"{self.api_base}/models", timeout=5)
             if response.status_code == 200:

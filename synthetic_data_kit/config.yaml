@@ -15,7 +15,8 @@ paths:
 # LLM Provider configuration
 llm:
   # Provider selection: "vllm" or "api-endpoint"
-  provider: "api-endpoint"
+  #  provider: "api-endpoint"
+  provider: "ollama"
 
 # VLLM server configuration
 vllm:
@@ -24,7 +25,15 @@ vllm:
   model: "meta-llama/Llama-3.3-70B-Instruct" # Default model to use
   max_retries: 3                       # Number of retries for API calls
   retry_delay: 1.0                     # Initial delay between retries (seconds)
-  
+
+#ollama server configuration
+ollama:
+  api_base: "http://localhost:11434/v1" # Ollama's OpenAI-compatible endpoint
+  api_key: "not-needed"                 # Ollama doesn't require an API key
+  model: "llama3:latest"                # Your Ollama model
+  max_retries: 3                        # Number of retries for API calls
+  retry_delay: 1.0                      # Initial delay between retries (seconds)
+
 # API endpoint configuration
 api-endpoint:
   api_base: "https://api.llama.com/v1" # Optional base URL for API endpoint (null for default API)

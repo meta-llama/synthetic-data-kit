@@ -33,7 +33,7 @@ def process_file(
     model: Optional[str] = None,
     content_type: str = "qa",
     num_pairs: Optional[int] = None,
-    verbose: bool = False,
+    verbose: bool = True,
     provider: Optional[str] = None,
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
@@ -42,9 +42,14 @@ def process_file(
     """Process a file to generate content
     
     Args:
+        provider: llm provider to use
+        chunk_size: size of text chunks for processing
+        chunk_overlap: overlap between text chunks
+        rolling_summary: use rolling summary for context
+        verbose: determine if extra logging is needed
         file_path: Path to the text file to process
         output_dir: Directory to save generated content
-        config_path: Path to configuration file
+        config_path: Path to a configuration file
         api_base: VLLM API base URL
         model: Model to use
         content_type: Type of content to generate (qa, summary, cot)
@@ -54,7 +59,7 @@ def process_file(
     Returns:
         Path to the output file
     """
-    # Create output directory if it doesn't exist
+    # Create an output directory if it doesn't exist
     # The reason for having this directory logic for now is explained in context.py
     os.makedirs(output_dir, exist_ok=True)
     
@@ -86,6 +91,7 @@ def process_file(
         documents = [{"text": read_json(file_path), "image": None}]
 
     if content_type == "qa":
+        print("Generating QA pairs...")
         generator = QAGenerator(client, config_path)
 
         # Get num_pairs from args or config
@@ -93,7 +99,6 @@ def process_file(
             config = client.config
             generation_config = get_generation_config(config)
             num_pairs = generation_config.get("num_pairs", 25)
-        
         # Process document
         result = generator.process_documents(
             documents,

@@ -199,6 +199,26 @@ class MockConfigFactory:
             },
         }
 
+    def create_ollama_config(self, model="mock-ollama-model"):
+        """Create a mock Ollama configuration."""
+        return {
+            "llm": {"provider": "ollama"},
+            "ollama": {
+                "model": model,
+                "max_retries": 3,
+                "retry_delay": 1,
+            },
+            "generation": {
+                "temperature": 0.3,
+                "max_tokens": 4096,
+                "top_p": 0.95,
+                "batch_size": 8,
+            },
+            "paths": {
+                "data_dir": "data",
+                "output_dir": "output",
+            },
+        }
 
 @pytest.fixture
 def config_factory():
@@ -243,10 +263,13 @@ def patch_vllm_config(config_factory):
         mock_load_config.return_value = config_factory.create_vllm_config()
         yield mock_load_config
 
+def patch_ollama_config(config_factory):
+    """Patch the config loader to return an Ollama configuration."""
+    with patch("synthetic_data_kit.utils.config.load_config") as mock_load_config:
+        mock_load_config.return_value = config_factory.create_ollama_config()
+        yield mock_load_config
 
 # Additional utility fixtures for common test patterns
-
-
 @pytest.fixture
 def temp_output_dir():
     """Create a temporary output directory for tests."""
