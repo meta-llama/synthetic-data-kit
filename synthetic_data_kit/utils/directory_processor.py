@@ -18,6 +18,7 @@ INGEST_EXTENSIONS = ['.pdf', '.html', '.htm', '.docx', '.pptx', '.txt']
 CREATE_EXTENSIONS = ['.txt', '.lance']
 CURATE_EXTENSIONS = ['.json']
 SAVE_AS_EXTENSIONS = ['.json']
+TRANSLATE_EXTENSIONS = ['.json']
 
 def is_directory(path: str) -> bool:
     """Check if path is a directory"""
@@ -616,6 +617,133 @@ def process_directory_save_as(
     # Show summary
     console.print("\n" + "="*50, style="bold")
     console.print(f"Format Conversion Summary ({format}, {storage_format}):", style="bold blue")
+    console.print(f"Total files: {results['total_files']}")
+    console.print(f"Successful: {results['successful']}", style="green")
+    console.print(f"Failed: {results['failed']}", style="red" if results['failed'] > 0 else "green")
+    console.print("="*50, style="bold")
+    
+    return results
+
+def process_directory_translate(
+    directory: str,
+    output_dir: Optional[str] = None,
+    config_path: Optional[str] = None,
+    api_base: Optional[str] = None,
+    model: Optional[str] = None,
+    source_lang: str = "Rust",
+    target_lang: str = "R",
+    verbose: bool = False,
+    provider: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Process all supported files in directory for translation
+    
+    Args:
+        directory: Directory containing files to translate
+        output_dir: Directory to save translated content
+        config_path: Path to configuration file
+        api_base: API base URL
+        model: Model to use
+        source_lang: Source language name
+        target_lang: Target language name
+        verbose: Show detailed progress
+        provider: LLM provider to use
+    
+    Returns:
+        Dictionary with processing results
+    """
+    from synthetic_data_kit.core.translate import process_file
+    
+    # Get all supported files
+    supported_files = get_supported_files(directory, TRANSLATE_EXTENSIONS)
+    
+    if not supported_files:
+        console.print(f"No supported files found in {directory}", style="yellow")
+        console.print(f"Looking for files with extensions: {', '.join(TRANSLATE_EXTENSIONS)}", style="yellow")
+        return {
+            "total_files": 0,
+            "successful": 0,
+            "failed": 0,
+            "results": [],
+            "errors": []
+        }
+    
+    console.print(f"Found {len(supported_files)} files to translate from {source_lang} to {target_lang}", style="blue")
+    
+    # Initialize results tracking
+    results = {
+        "total_files": len(supported_files),
+        "successful": 0,
+        "failed": 0,
+        "results": [],
+        "errors": []
+    }
+    
+    # Process files with progress bar
+    with Progress(
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        TextColumn("({task.completed}/{task.total})"),
+        TimeElapsedColumn(),
+        console=console,
+        disable=not verbose
+    ) as progress:
+        
+        task = progress.add_task(f"Translating {source_lang} -> {target_lang}", total=len(supported_files))
+        
+        for file_path in supported_files:
+            filename = os.path.basename(file_path)
+            
+            try:
+                # Process individual file
+                output_path = process_file(
+                    file_path,
+                    output_dir,
+                    source_lang,
+                    target_lang,
+                    config_path,
+                    api_base,
+                    model,
+                    provider,
+                    verbose
+                )
+                
+                # Record success
+                results["successful"] += 1
+                results["results"].append({
+                    "input_file": file_path,
+                    "output_file": output_path,
+                    "source_lang": source_lang,
+                    "target_lang": target_lang,
+                    "status": "success"
+                })
+                
+                if verbose:
+                    console.print(f"✓ Translated {filename} -> {os.path.basename(output_path)}", style="green")
+                else:
+                    console.print(f"✓ {filename}", style="green")
+                
+            except Exception as e:
+                # Record failure
+                results["failed"] += 1
+                results["errors"].append({
+                    "input_file": file_path,
+                    "error": str(e),
+                    "source_lang": source_lang,
+                    "target_lang": target_lang,
+                    "status": "failed"
+                })
+                
+                if verbose:
+                    console.print(f"✗ Failed to translate {filename}: {e}", style="red")
+                else:
+                    console.print(f"✗ {filename}: {e}", style="red")
+            
+            progress.update(task, advance=1)
+    
+    # Show summary
+    console.print("\n" + "="*50, style="bold")
+    console.print(f"Translation Summary ({source_lang} -> {target_lang}):", style="bold blue")
     console.print(f"Total files: {results['total_files']}")
     console.print(f"Successful: {results['successful']}", style="green")
     console.print(f"Failed: {results['failed']}", style="red" if results['failed'] > 0 else "green")
