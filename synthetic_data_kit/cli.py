@@ -748,6 +748,161 @@ def save_as(
         return 1
 
 
+@app.command()
+def translate(
+    input: str = typer.Argument(..., help="File or directory to translate"),
+    source_lang: str = typer.Option(
+        "Rust", "--source-lang", "-s", help="Source language (e.g., Rust, Python)"
+    ),
+    target_lang: str = typer.Option(
+        "R", "--target-lang", "-t", help="Target language (e.g., R, Python)"
+    ),
+    output_dir: Optional[Path] = typer.Option(
+        None, "--output-dir", "-o", help="Where to save the translated output"
+    ),
+    api_base: Optional[str] = typer.Option(
+        None, "--api-base", help="VLLM API base URL"
+    ),
+    model: Optional[str] = typer.Option(
+        None, "--model", "-m", help="Model to use"
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose", "-v", help="Show detailed output"
+    ),
+    preview: bool = typer.Option(
+        False, "--preview", help="Preview files to be processed without actually processing them"
+    ),
+):
+    """
+    Translate code/prompts from one language to another using LLM.
+    
+    Can process:
+    - Single file: synthetic-data-kit translate problems.json --source-lang Python --target-lang Rust
+    - Directory: synthetic-data-kit translate ./json_files/ --source-lang Python --target-lang Rust
+    
+    The default translation is from Rust to R, using the specialized template
+    that avoids complex type annotations and advanced metaprogramming.
+    
+    Only JSON files are supported. The file should contain an array of JSON objects,
+    each with a prompt field (prompt, question, instruction, text, content, or input).
+    """
+    import os
+    from synthetic_data_kit.core.translate import process_file
+    from synthetic_data_kit.utils.directory_processor import is_directory, process_directory_translate, get_directory_stats, TRANSLATE_EXTENSIONS
+    
+    # Check the LLM provider from config
+    provider = get_llm_provider(ctx.config)
+    console.print(f"🔗 Using {provider} provider", style="green")
+    
+    if provider == "api-endpoint":
+        # Use API endpoint config
+        api_endpoint_config = get_openai_config(ctx.config)
+        api_base = api_base or api_endpoint_config.get("api_base")
+        model = model or api_endpoint_config.get("model")
+        # No server check needed for API endpoint
+    else:
+        # Use vLLM config
+        vllm_config = get_vllm_config(ctx.config)
+        api_base = api_base or vllm_config.get("api_base")
+        model = model or vllm_config.get("model")
+        
+        # Check vLLM server availability
+        try:
+            response = requests.get(f"{api_base}/models", timeout=2)
+            if response.status_code != 200:
+                console.print(f"❌ Error: VLLM server not available at {api_base}", style="red")
+                console.print("Please start the VLLM server with:", style="yellow")
+                console.print(f"vllm serve {model}", style="bold blue")
+                return 1
+        except requests.exceptions.RequestException:
+            console.print(f"❌ Error: VLLM server not available at {api_base}", style="red")
+            console.print("Please start the VLLM server with:", style="yellow")
+            console.print(f"vllm serve {model}", style="bold blue")
+            return 1
+    
+    # Get output directory from args, then config, then default
+    if output_dir is None:
+        output_dir = get_path_config(ctx.config, "output", "translated")
+    
+    try:
+        # Check if input is a directory
+        if is_directory(input):
+            # Preview mode - show files without processing
+            if preview:
+                console.print(f"Preview: scanning directory [bold]{input}[/bold] for translation", style="blue")
+                stats = get_directory_stats(input, TRANSLATE_EXTENSIONS)
+                
+                if "error" in stats:
+                    console.print(f"❌ {stats['error']}", style="red")
+                    return 1
+                
+                console.print(f"\n📁 Directory: {input}")
+                console.print(f"📄 Total files: {stats['total_files']}")
+                console.print(f"✅ Supported files: {stats['supported_files']}")
+                console.print(f"❌ Unsupported files: {stats['unsupported_files']}")
+                
+                if stats['supported_files'] > 0:
+                    console.print(f"\n📋 Files that would be translated ({source_lang} -> {target_lang}):")
+                    for ext, count in stats['by_extension'].items():
+                        console.print(f"  {ext}: {count} file(s)")
+                    
+                    console.print(f"\n📝 File list:")
+                    for filename in stats['file_list']:
+                        console.print(f"  • {filename}")
+                    
+                    console.print(f"\n💡 To process these files, run:")
+                    console.print(f"   synthetic-data-kit translate {input} --source-lang {source_lang} --target-lang {target_lang} --output-dir {output_dir}", style="bold blue")
+                else:
+                    console.print(f"\n⚠️  No supported files found for translation.", style="yellow")
+                    console.print(f"   Looking for: {', '.join(TRANSLATE_EXTENSIONS)}", style="yellow")
+                
+                return 0
+            
+            console.print(f"Processing directory: [bold]{input}[/bold] for translation ({source_lang} -> {target_lang})", style="blue")
+            results = process_directory_translate(
+                directory=input,
+                output_dir=output_dir,
+                config_path=ctx.config_path,
+                api_base=api_base,
+                model=model,
+                source_lang=source_lang,
+                target_lang=target_lang,
+                verbose=verbose,
+                provider=provider
+            )
+            
+            # Return appropriate exit code
+            if results["failed"] > 0:
+                console.print(f"⚠️  Completed with {results['failed']} errors", style="yellow")
+                return 1
+            else:
+                console.print("✅ All files translated successfully!", style="green")
+                return 0
+        else:
+            # Process single file (existing logic)
+            if preview:
+                console.print("Preview mode is only available for directories. Processing single file...", style="yellow")
+            
+            with console.status(f"Translating {input} from {source_lang} to {target_lang}..."):
+                output_path = process_file(
+                    input,
+                    output_dir,
+                    source_lang,
+                    target_lang,
+                    ctx.config_path,
+                    api_base,
+                    model,
+                    provider,
+                    verbose
+                )
+            console.print(f"✅ Translation saved to [bold]{output_path}[/bold]", style="green")
+            return 0
+            
+    except Exception as e:
+        console.print(f"❌ Error: {e}", style="red")
+        return 1
+
+
 @app.command("server")
 def server(
     host: str = typer.Option(

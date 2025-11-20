@@ -11,6 +11,7 @@ paths:
     generated: "data/generated" # Stage 2: Where generated QA pairs are saved (create output)
     curated: "data/curated"     # Stage 3: Where curated QA pairs are saved (curate output)
     final: "data/final"         # Stage 4: Where final training formats are saved (save-as output)
+    translated: "data/translated" # Where translated files are saved (translate output)
 
 # LLM Provider configuration
 llm:
@@ -186,3 +187,27 @@ prompts:
     
     Original conversations:
     {conversations}
+  
+  # Translation prompt
+  translation: |
+    The following prompt may have {source_lang} syntax, variable types, and {source_lang}-specific behavior mentioned. Translate the question to the appropriate {target_lang} syntax and replace anything mentioning {source_lang} with {target_lang}.
+    
+    Preserve the meaning and intent of the original problem statement while adapting:
+    - Function signatures and type annotations to {target_lang} conventions
+    - Variable types (e.g., {source_lang} types to {target_lang} types)
+    - Language-specific syntax and idioms
+    - Any mentions of {source_lang} should be replaced with {target_lang}
+    
+    Guidelines:
+    - Use simple, standard {target_lang} types and features
+    - Avoid advanced {target_lang} features unless necessary
+    - Maintain the logical structure and problem requirements
+    - Keep all mathematical formulas and logic unchanged
+    
+    Only return the translated question/prompt and do not answer the question or provide code solutions.
+    
+    {source_lang} Prompt:
+    
+    {prompt}
+    
+    {target_lang} Prompt:
