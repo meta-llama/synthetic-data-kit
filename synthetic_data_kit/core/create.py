@@ -7,7 +7,7 @@
 import os
 import json
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Tuple
 
 from synthetic_data_kit.models.llm_client import LLMClient
 from synthetic_data_kit.generators.qa_generator import QAGenerator
@@ -18,11 +18,7 @@ from synthetic_data_kit.utils.config import get_generation_config
 
 from synthetic_data_kit.utils.lance_utils import load_lance_dataset
 
-def read_json(file_path):
-    # Read the file
-    with open(file_path, 'r', encoding='utf-8') as f:
-        document_text = f.read()
-    return document_text
+from synthetic_data_kit.parsers import parse_file
 
 
 def process_file(
@@ -38,6 +34,9 @@ def process_file(
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
     rolling_summary: Optional[bool] = False,
+    difficulty: Optional[str] = None,
+    language: str = "english",
+    page_range: Optional[Tuple[int, int]] = None,
 ) -> str:
     """Process a file to generate content
     
@@ -63,7 +62,8 @@ def process_file(
         config_path=config_path,
         provider=provider,
         api_base=api_base,
-        model_name=model
+        model_name=model,
+        verbose=verbose
     )
     
     # Override chunking config if provided
@@ -71,9 +71,6 @@ def process_file(
         client.config.setdefault('generation', {})['chunk_size'] = chunk_size
     if chunk_overlap is not None:
         client.config.setdefault('generation', {})['overlap'] = chunk_overlap
-    
-    # Debug: Print which provider is being used
-    print(f"L Using {client.provider} provider")
     
     # Generate base filename for output
     base_name = os.path.splitext(os.path.basename(file_path))[0]
@@ -83,47 +80,60 @@ def process_file(
         dataset = load_lance_dataset(file_path)
         documents = dataset.to_table().to_pylist()
     else:
-        documents = [{"text": read_json(file_path), "image": None}]
+        documents = parse_file(file_path, page_range=page_range)
+
+    # Determine target language behavior
+    lang_mode = (language or "english").lower()
+    target_language = "english" if lang_mode != "source" else "source"
+
+    # Normalize difficulty early
+    if difficulty:
+        difficulty = difficulty.lower()
+        if difficulty not in {"easy", "medium", "advanced"}:
+            difficulty = None
 
     if content_type == "qa":
-        generator = QAGenerator(client, config_path)
+        generator = QAGenerator(client, config_path, target_language=target_language)
 
         # Get num_pairs from args or config
         if num_pairs is None:
             config = client.config
             generation_config = get_generation_config(config)
             num_pairs = generation_config.get("num_pairs", 25)
-        
+
         # Process document
         result = generator.process_documents(
             documents,
             num_pairs=num_pairs,
             verbose=verbose,
-            rolling_summary=rolling_summary
+            rolling_summary=rolling_summary,
+            difficulty=difficulty,
         )
-        
+
         # Save output
-        output_path = os.path.join(output_dir, f"{base_name}_qa_pairs.json")
+        suffix = f"_{difficulty}" if difficulty else ""
+        output_path = os.path.join(output_dir, f"{base_name}{suffix}_qa_pairs.json")
         print(f"Saving result to {output_path}")
-            
+
         # Now save the actual result
         try:
             with open(output_path, 'w', encoding='utf-8') as f:
-                json.dump(result, f, indent=2)
+                json.dump(result, f, indent=2, ensure_ascii=False)
             print(f"Successfully wrote result to {output_path}")
         except Exception as e:
             print(f"Error writing result file: {e}")
-        
+
         return output_path
     
     elif content_type == "multimodal-qa":
-        generator = MultimodalQAGenerator(client, config_path)
+        generator = MultimodalQAGenerator(client, config_path, target_language=target_language)
         output_path = generator.process_dataset(
             documents=documents,
             output_dir=output_dir,
             num_examples=num_pairs,
             verbose=verbose,
             base_name=base_name,
+            difficulty=difficulty,
         )
         return output_path
 
@@ -138,7 +148,7 @@ def process_file(
         return output_path
 
     elif content_type == "summary":
-        generator = QAGenerator(client, config_path)
+        generator = QAGenerator(client, config_path, target_language=target_language)
 
         full_text = " ".join([doc["text"] for doc in documents])
         
@@ -148,7 +158,7 @@ def process_file(
         # Save output
         output_path = os.path.join(output_dir, f"{base_name}_summary.json")
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump({"summary": summary}, f, indent=2)
+            json.dump({"summary": summary}, f, indent=2, ensure_ascii=False)
         
         return output_path
     
@@ -160,7 +170,7 @@ def process_file(
         from synthetic_data_kit.generators.cot_generator import COTGenerator
         
         # Initialize the CoT generator
-        generator = COTGenerator(client, config_path)
+        generator = COTGenerator(client, config_path, target_language=target_language)
 
         full_text = " ".join([doc["text"] for doc in documents])
         
@@ -169,18 +179,21 @@ def process_file(
             config = client.config
             generation_config = get_generation_config(config)
             num_pairs = generation_config.get("num_cot_examples", 5)
-        
+
         # Process document to generate CoT examples
         result = generator.process_document(
             full_text,
             num_examples=num_pairs,
-            include_simple_steps=verbose  # More detailed if verbose is enabled
+            include_simple_steps=verbose,  # More detailed if verbose is enabled
+            difficulty=difficulty,
+            verbose=verbose,
         )
         
         # Save output
-        output_path = os.path.join(output_dir, f"{base_name}_cot_examples.json")
+        suffix = f"_{difficulty}" if difficulty else ""
+        output_path = os.path.join(output_dir, f"{base_name}{suffix}_cot_examples.json")
         with open(output_path, 'w', encoding='utf-8') as f:
-            json.dump(result, f, indent=2)
+            json.dump(result, f, indent=2, ensure_ascii=False)
         
         if verbose:
             # Print some example content
@@ -198,9 +211,10 @@ def process_file(
         from tqdm import tqdm
         
         # Initialize the CoT generator
-        generator = COTGenerator(client, config_path)
+        generator = COTGenerator(client, config_path, target_language=target_language)
 
-        document_text = read_json(file_path)
+        parsed_content = parse_file(file_path)
+        document_text = parsed_content[0]["text"] if parsed_content else ""
         
         # Get max_examples from args or config
         max_examples = None
@@ -302,10 +316,10 @@ def process_file(
             with open(output_path, 'w', encoding='utf-8') as f:
                 if is_single_conversation and len(enhanced_conversations) == 1:
                     # Save the single conversation
-                    json.dump(enhanced_conversations[0], f, indent=2)
+                    json.dump(enhanced_conversations[0], f, indent=2, ensure_ascii=False)
                 else:
                     # Save the array of conversations
-                    json.dump(enhanced_conversations, f, indent=2)
+                    json.dump(enhanced_conversations, f, indent=2, ensure_ascii=False)
             
             if verbose:
                 print(f"Enhanced {len(enhanced_conversations)} conversation(s)")

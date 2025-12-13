@@ -13,7 +13,7 @@ import logging
 import asyncio
 from pathlib import Path
 
-from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_llm_provider
+from synthetic_data_kit.utils.config import load_config, get_vllm_config, get_openai_config, get_openai_direct_config, get_ollama_config, get_llm_provider
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -36,18 +36,26 @@ class LLMClient:
                  api_key: Optional[str] = None,
                  model_name: Optional[str] = None,
                  max_retries: Optional[int] = None,
-                 retry_delay: Optional[float] = None):
+                 retry_delay: Optional[float] = None,
+                 verbose: bool = False):
         """Initialize an LLM client that supports multiple providers
         
         Args:
             config_path: Path to config file (if None, uses default)
-            provider: Override provider from config ('vllm' or 'api-endpoint')
+            provider: Override provider from config ('vllm', 'api-endpoint', 'openai', 'ollama')
             api_base: Override API base URL from config
-            api_key: Override API key for API endpoint (only needed for 'api-endpoint' provider)
+            api_key: Override API key for API endpoint/OpenAI (only needed for 'api-endpoint' and 'openai' providers)
             model_name: Override model name from config
             max_retries: Override max retries from config
             retry_delay: Override retry delay from config
+            verbose: Enable verbose logging
         """
+        # Set up logging based on verbose flag
+        if verbose:
+            logging.getLogger().setLevel(logging.INFO)
+        else:
+            logging.getLogger().setLevel(logging.WARNING)
+        
         # Load config
         self.config = load_config(config_path)
         
@@ -66,11 +74,13 @@ class LLMClient:
             
             # Check for environment variables
             api_endpoint_key = os.environ.get('API_ENDPOINT_KEY')
-            print(f"API_ENDPOINT_KEY from environment: {'Found' if api_endpoint_key else 'Not found'}")
+            if verbose:
+                print(f"API_ENDPOINT_KEY from environment: {'Found' if api_endpoint_key else 'Not found'}")
             
             # Set API key with priority: CLI arg > env var > config
             self.api_key = api_key or api_endpoint_key or api_endpoint_config.get('api_key')
-            print(f"Using API key: {'From CLI' if api_key else 'From env var' if api_endpoint_key else 'From config' if api_endpoint_config.get('api_key') else 'None'}")
+            if verbose:
+                print(f"Using API key: {'From CLI' if api_key else 'From env var' if api_endpoint_key else 'From config' if api_endpoint_config.get('api_key') else 'None'}")
             
             if not self.api_key and not self.api_base:  # Only require API key for official API
                 raise ValueError("API key is required for API endpoint provider. Set in config or API_ENDPOINT_KEY env var.")
@@ -82,6 +92,60 @@ class LLMClient:
             
             # Initialize OpenAI client
             self._init_openai_client()
+            
+        elif self.provider == 'openai':
+            if not OPENAI_AVAILABLE:
+                raise ImportError("OpenAI package is not installed. Install with 'pip install openai>=1.0.0'")
+            
+            # Load OpenAI direct configuration
+            openai_config = get_openai_direct_config(self.config)
+            
+            # Set parameters, with CLI overrides taking precedence
+            self.api_base = api_base or openai_config.get('api_base')
+            
+            # Check for environment variables
+            openai_key = os.environ.get('OPENAI_API_KEY')
+            print(f"OPENAI_API_KEY from environment: {'Found' if openai_key else 'Not found'}")
+            
+            # Set API key with priority: CLI arg > env var > config
+            self.api_key = api_key or openai_key or openai_config.get('api_key')
+            if verbose:
+                print(f"Using API key: {'From CLI' if api_key else 'From env var' if openai_key else 'From config' if openai_config.get('api_key') else 'None'}")
+            
+            if not self.api_key:
+                raise ValueError(
+                    "OpenAI API key is required. Please set one of:\n"
+                    "1. OPENAI_API_KEY environment variable\n"
+                    "2. api_key in config.yaml under openai section\n"
+                    "3. --api-key CLI argument\n"
+                    "Get your API key from: https://platform.openai.com/account/api-keys"
+                )
+            
+            self.model = model_name or openai_config.get('model')
+            self.max_retries = max_retries or openai_config.get('max_retries')
+            self.retry_delay = retry_delay or openai_config.get('retry_delay')
+            self.sleep_time = openai_config.get('sleep_time',0.5)
+            
+            # Initialize OpenAI client
+            self._init_openai_client()
+            
+        elif self.provider == 'ollama':
+            # Load Ollama configuration
+            ollama_config = get_ollama_config(self.config)
+            
+            # Set parameters, with CLI overrides taking precedence
+            self.api_base = api_base or ollama_config.get('api_base')
+            self.model = model_name or ollama_config.get('model')
+            self.max_retries = max_retries or ollama_config.get('max_retries')
+            self.retry_delay = retry_delay or ollama_config.get('retry_delay')
+            self.sleep_time = ollama_config.get('sleep_time',0.1)
+            
+            # No client to initialize for Ollama as we use requests directly
+            # Verify server is running
+            available, info = self._check_ollama_server()
+            if not available:
+                raise ConnectionError(f"Ollama server not available at {self.api_base}: {info}")
+                
         else:  # Default to vLLM
             # Load vLLM configuration
             vllm_config = get_vllm_config(self.config)
@@ -117,11 +181,50 @@ class LLMClient:
             client_kwargs['base_url'] = self.api_base
         
         self.openai_client = OpenAI(**client_kwargs)
+
+    def _openai_token_param(self, model_name: Optional[str] = None) -> str:
+        """Return the correct token limit parameter name for the given OpenAI model.
+
+        Some newer models (e.g., GPT-5 series) do not accept 'max_tokens' and require
+        'max_completion_tokens' instead. This helper returns the appropriate key.
+        """
+        name = (model_name or self.model or "").lower().strip()
+        # GPT-5 and OpenAI O-series (o1/o2/o3/o4) require 'max_completion_tokens'
+        if name.startswith("gpt-5"):
+            return "max_completion_tokens"
+        if name.startswith(("o1", "o2", "o3", "o4")):
+            return "max_completion_tokens"
+        # Default for chat.completions
+        return "max_tokens"
+
+    def _openai_include_sampling_params(self, model_name: Optional[str] = None) -> bool:
+        """Determine whether to include sampling params like temperature/top_p.
+
+        Some newer models (e.g., GPT-5 series) restrict sampling controls and only
+        support defaults. For those models, we must omit these parameters.
+        """
+        name = (model_name or self.model or "").lower().strip()
+        # GPT-5 series and OpenAI O-series (o1/o2/o3/o4) restrict sampling controls
+        if name.startswith("gpt-5"):
+            return False
+        if name.startswith(("o1", "o2", "o3", "o4")):
+            return False
+        return True
     
     def _check_vllm_server(self) -> tuple:
         """Check if the VLLM server is running and accessible"""
         try:
             response = requests.get(f"{self.api_base}/models", timeout=5)
+            if response.status_code == 200:
+                return True, response.json()
+            return False, f"Server returned status code: {response.status_code}"
+        except requests.exceptions.RequestException as e:
+            return False, f"Server connection error: {str(e)}"
+    
+    def _check_ollama_server(self) -> tuple:
+        """Check if the Ollama server is running and accessible"""
+        try:
+            response = requests.get(f"{self.api_base}/api/tags", timeout=5)
             if response.status_code == 200:
                 return True, response.json()
             return False, f"Server returned status code: {response.status_code}"
@@ -154,6 +257,10 @@ class LLMClient:
         
         if self.provider == 'api-endpoint':
             return self._openai_chat_completion(messages, temperature, max_tokens, top_p, verbose)
+        elif self.provider == 'openai':
+            return self._openai_chat_completion(messages, temperature, max_tokens, top_p, verbose)
+        elif self.provider == 'ollama':
+            return self._ollama_chat_completion(messages, temperature, max_tokens, top_p, verbose)
         else:  # Default to vLLM
             return self._vllm_chat_completion(messages, temperature, max_tokens, top_p, verbose)
     
@@ -171,13 +278,18 @@ class LLMClient:
         for attempt in range(self.max_retries):
             try:
                 # Create the completion request
-                response = self.openai_client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p
-                )
+                token_param = self._openai_token_param(self.model)
+                req_kwargs = {
+                    "model": self.model,
+                    "messages": messages,
+                }
+                # Include sampling params only if allowed by the model
+                if self._openai_include_sampling_params(self.model):
+                    req_kwargs["temperature"] = temperature
+                    req_kwargs["top_p"] = top_p
+                req_kwargs[token_param] = max_tokens
+
+                response = self.openai_client.chat.completions.create(**req_kwargs)
                 
                 if verbose:
                     logger.info(f"Received response from {self.provider}")
@@ -318,6 +430,123 @@ class LLMClient:
                     raise Exception(f"Failed to get vLLM completion after {self.max_retries} attempts: {str(e)}")
                 time.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
     
+    def _ollama_chat_completion(self, 
+                              messages: List[Dict[str, str]],
+                              temperature: float,
+                              max_tokens: int,
+                              top_p: float,
+                              verbose: bool) -> str:
+        """Generate a chat completion using the Ollama API"""
+        data = {
+            "model": self.model,
+            "messages": messages,
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "top_p": top_p,
+                "num_predict": max_tokens
+            }
+        }
+        
+        for attempt in range(self.max_retries):
+            try:
+                # Only print if verbose mode is enabled
+                if verbose:
+                    logger.info(f"Sending request to Ollama model {self.model}...")
+                
+                response = requests.post(
+                    f"{self.api_base}/api/chat",
+                    headers={"Content-Type": "application/json"},
+                    data=json.dumps(data),
+                    timeout=180  # Increased timeout to 180 seconds
+                )
+                
+                if verbose:
+                    logger.info(f"Received response with status code: {response.status_code}")
+                
+                response.raise_for_status()
+                response_data = response.json()
+                
+                # Ollama returns response in 'message' -> 'content'
+                if 'message' in response_data and 'content' in response_data['message']:
+                    return response_data['message']['content']
+                else:
+                    raise ValueError(f"Unexpected response format from Ollama: {response_data}")
+            
+            except (requests.exceptions.RequestException, KeyError, IndexError, ValueError) as e:
+                if attempt == self.max_retries - 1:
+                    raise Exception(f"Failed to get Ollama completion after {self.max_retries} attempts: {str(e)}")
+                time.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
+    
+    def _ollama_batch_completion(self,
+                                message_batches: List[List[Dict[str, str]]],
+                                temperature: float,
+                                max_tokens: int,
+                                top_p: float,
+                                batch_size: int,
+                                verbose: bool) -> List[str]:
+        """Process multiple message sets in batches using Ollama's API"""
+        results = []
+        
+        # Process message batches in chunks to avoid overloading the server
+        for i in range(0, len(message_batches), batch_size):
+            batch_chunk = message_batches[i:i+batch_size]
+            if verbose:
+                logger.info(f"Processing batch {i//batch_size + 1}/{(len(message_batches) + batch_size - 1) // batch_size} with {len(batch_chunk)} requests")
+            
+            # Process each request in the batch sequentially (Ollama doesn't support true batching like OpenAI)
+            batch_results = []
+            for messages in batch_chunk:
+                data = {
+                    "model": self.model,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {
+                        "temperature": temperature,
+                        "top_p": top_p,
+                        "num_predict": max_tokens
+                    }
+                }
+                
+                for attempt in range(self.max_retries):
+                    try:
+                        # Only print if verbose mode is enabled
+                        if verbose:
+                            logger.info(f"Sending request to Ollama model {self.model}...")
+                        
+                        response = requests.post(
+                            f"{self.api_base}/api/chat",
+                            headers={"Content-Type": "application/json"},
+                            data=json.dumps(data),
+                            timeout=180  # Increased timeout for batch processing
+                        )
+                        
+                        if verbose:
+                            logger.info(f"Received response with status code: {response.status_code}")
+                        
+                        response.raise_for_status()
+                        response_data = response.json()
+                        
+                        # Ollama returns response in 'message' -> 'content'
+                        if 'message' in response_data and 'content' in response_data['message']:
+                            batch_results.append(response_data['message']['content'])
+                            break  # Success, exit retry loop
+                        else:
+                            raise ValueError(f"Unexpected response format from Ollama: {response_data}")
+                    
+                    except (requests.exceptions.RequestException, KeyError, IndexError, ValueError) as e:
+                        if attempt == self.max_retries - 1:
+                            raise Exception(f"Failed to get Ollama completion after {self.max_retries} attempts: {str(e)}")
+                        time.sleep(self.retry_delay * (attempt + 1))  # Exponential backoff
+            
+            results.extend(batch_results)
+            
+            # Small delay between batches
+            if i + batch_size < len(message_batches):
+                time.sleep(self.sleep_time)
+        
+        return results
+    
     def batch_completion(self, 
                        message_batches: List[List[Dict[str, str]]], 
                        temperature: float = None, 
@@ -338,8 +567,10 @@ class LLMClient:
         
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
-        if self.provider == 'api-endpoint':
+        if self.provider in ['api-endpoint', 'openai']:
             return self._openai_batch_completion(message_batches, temperature, max_tokens, top_p, batch_size, verbose)
+        elif self.provider == 'ollama':
+            return self._ollama_batch_completion(message_batches, temperature, max_tokens, top_p, batch_size, verbose)
         else:  # Default to vLLM
             return self._vllm_batch_completion(message_batches, temperature, max_tokens, top_p, batch_size, verbose)
     
@@ -368,13 +599,18 @@ class LLMClient:
         for attempt in range(self.max_retries):
             try:
                 # Asynchronously call the API
-                response = await async_client.chat.completions.create(
-                    model=self.model,
-                    messages=messages,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    top_p=top_p
-                )
+                token_param = self._openai_token_param(self.model)
+                req_kwargs = {
+                    "model": self.model,
+                    "messages": messages,
+                }
+                # Include sampling params only if allowed by the model
+                if self._openai_include_sampling_params(self.model):
+                    req_kwargs["temperature"] = temperature
+                    req_kwargs["top_p"] = top_p
+                req_kwargs[token_param] = max_tokens
+
+                response = await async_client.chat.completions.create(**req_kwargs)
                 
                 if verbose:
                     logger.info(f"Received response from {self.provider}")

@@ -31,7 +31,6 @@ def test_process_file(patch_config, test_env):
                 # Create a mock generator that returns a predefined document
                 mock_generator = MagicMock()
                 mock_generator.process_documents.return_value = {
-                    "summary": "A sample text for testing.",
                     "qa_pairs": [
                         {"question": "What is this?", "answer": "This is sample text."},
                         {"question": "What is it for?", "answer": "For testing QA generation."},
@@ -110,7 +109,6 @@ def test_process_directory(patch_config, test_env):
                 # Create a mock generator that returns a predefined document
                 mock_generator = MagicMock()
                 mock_generator.process_document.return_value = {
-                    "summary": "A sample text for testing.",
                     "qa_pairs": [
                         {"question": "What is this?", "answer": "This is sample text."},
                         {"question": "What is it for?", "answer": "For testing QA generation."},

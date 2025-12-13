@@ -417,7 +417,8 @@ synthetic-data-kit create [OPTIONS] INPUT
 
 | Option | Description |
 |--------|-------------|
-| `--type TEXT` | Content type to generate [qa\|summary\|cot] |
+| `--type TEXT` | Content type to generate [qa\|summary\|cot\|cot-enhance\|multimodal-qa] |
+| `-d, --difficulty TEXT` | Question difficulty [easy\|medium\|advanced] (for qa, cot, multimodal-qa) |
 | `-o, --output-dir PATH` | Directory to save generated content |
 | `--api-base TEXT` | VLLM API base URL |
 | `-m, --model TEXT` | Model to use |
@@ -438,6 +439,11 @@ synthetic-data-kit create data/output/document.txt --type summary
 
 # Generate Chain of Thought (CoT) reasoning examples
 synthetic-data-kit create data/output/document.txt --type cot
+
+# Control difficulty
+synthetic-data-kit create data/output/document.txt --type qa --difficulty medium
+synthetic-data-kit create data/output/document.txt --type cot --difficulty advanced
+synthetic-data-kit create data/output/document.lance --type multimodal-qa --difficulty easy
 
 # Use custom model
 synthetic-data-kit create data/output/document.txt -m "meta-llama/Llama-3.3-8B-Instruct"

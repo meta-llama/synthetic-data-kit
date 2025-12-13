@@ -299,12 +299,8 @@ def test_process_document(patch_config):
     )
 
     # Check that the result contains expected fields
-    assert "summary" in result
     assert "cot_examples" in result
     assert "conversations" in result
-
-    # Check summary
-    assert result["summary"] == "This is a summary about synthetic data."
 
     # Check CoT examples
     assert len(result["cot_examples"]) == 2
@@ -315,5 +311,5 @@ def test_process_document(patch_config):
     assert len(result["conversations"][0]) == 3  # system, user, assistant
     assert "reasoning" in result["cot_examples"][0]
 
-    # Check that client was called twice
-    assert mock_client.chat_completion.call_count == 2
+    # Check that client was called once for the CoT examples (no summary call)
+    assert mock_client.chat_completion.call_count == 1
