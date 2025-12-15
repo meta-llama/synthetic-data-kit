@@ -48,6 +48,7 @@ generation:
   overlap: 200       # Overlap between chunks to maintain context
   max_tokens: 4096   # Maximum tokens in LLM responses
   num_pairs: 25      # Default number of QA pairs to generate
+  num_pairs_per_chunk: null  # Alternative: number of QA pairs per chunk (null = use num_pairs instead)
   num_cot_examples: 5  # Default number of Chain of Thought examples to generate
   num_cot_enhance_examples: null  # Maximum number of conversations to enhance (null = enhance all)
   batch_size: 32     # Number of requests to batch together (for create)

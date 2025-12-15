@@ -177,3 +177,129 @@ def test_process_document(patch_config):
     assert "qa_pairs" in result
     assert result["summary"] == "This is a summary of the document."
     assert len(result["qa_pairs"]) == 2
+
+
+@pytest.mark.unit
+def test_generate_qa_pairs_per_chunk(patch_config):
+    """Test generating QA pairs with num_pairs_per_chunk parameter."""
+    # Create mock LLM client
+    mock_client = MagicMock()
+    # Mock batch_completion to return 2 pairs per chunk (simulating 2 chunks)
+    mock_client.batch_completion.return_value = [
+        json.dumps(
+            [
+                {
+                    "question": "Question from chunk 1?",
+                    "answer": "Answer from chunk 1.",
+                },
+                {
+                    "question": "Question 2 from chunk 1?",
+                    "answer": "Answer 2 from chunk 1.",
+                }
+            ]
+        ),
+        json.dumps(
+            [
+                {
+                    "question": "Question from chunk 2?",
+                    "answer": "Answer from chunk 2.",
+                },
+                {
+                    "question": "Question 2 from chunk 2?",
+                    "answer": "Answer 2 from chunk 2.",
+                }
+            ]
+        ),
+    ]
+
+    # Initialize generator
+    generator = QAGenerator(client=mock_client)
+
+    # Generate QA pairs with num_pairs_per_chunk=2
+    # This should generate 2 pairs per chunk, total depends on number of chunks
+    qa_pairs = generator.generate_qa_pairs(
+        document_text="This is a document to generate QA pairs from. " * 100,  # Long enough to create multiple chunks
+        summary="This is a summary of the document.",
+        num_pairs_per_chunk=2,
+    )
+
+    # Check that QA pairs were generated (should be 2 per chunk)
+    assert len(qa_pairs) >= 2
+    # Check that client was called
+    assert mock_client.batch_completion.called
+
+
+@pytest.mark.unit
+def test_num_pairs_per_chunk_priority(patch_config):
+    """Test that num_pairs_per_chunk takes precedence over num_pairs."""
+    # Create mock LLM client
+    mock_client = MagicMock()
+    mock_client.batch_completion.return_value = [
+        json.dumps(
+            [
+                {
+                    "question": "Question 1?",
+                    "answer": "Answer 1.",
+                },
+                {
+                    "question": "Question 2?",
+                    "answer": "Answer 2.",
+                }
+            ]
+        ),
+    ]
+
+    # Initialize generator
+    generator = QAGenerator(client=mock_client)
+
+    # Generate QA pairs with both parameters
+    # num_pairs_per_chunk should take precedence
+    qa_pairs = generator.generate_qa_pairs(
+        document_text="Short document.",
+        summary="Summary.",
+        num_pairs=100,  # This should be ignored
+        num_pairs_per_chunk=2,  # This should be used
+    )
+
+    # Should generate based on num_pairs_per_chunk, not num_pairs
+    assert len(qa_pairs) == 2
+    assert mock_client.batch_completion.called
+
+
+@pytest.mark.unit
+def test_process_documents_with_num_pairs_per_chunk(patch_config):
+    """Test process_documents with num_pairs_per_chunk parameter."""
+    # Create mock LLM client
+    mock_client = MagicMock()
+    mock_client.chat_completion.return_value = "This is a summary of the document."
+    mock_client.batch_completion.return_value = [
+        json.dumps(
+            [
+                {
+                    "question": "Question 1?",
+                    "answer": "Answer 1.",
+                },
+                {
+                    "question": "Question 2?",
+                    "answer": "Answer 2.",
+                }
+            ]
+        ),
+    ]
+
+    # Initialize generator
+    generator = QAGenerator(client=mock_client)
+
+    # Process document with num_pairs_per_chunk
+    result = generator.process_documents(
+        documents=[{"text": "This is a document to process."}],
+        num_pairs_per_chunk=2,
+        verbose=False
+    )
+
+    # Check that the result contains summary and QA pairs
+    assert "summary" in result
+    assert "qa_pairs" in result
+    assert result["summary"] == "This is a summary of the document."
+    assert len(result["qa_pairs"]) >= 2
+

@@ -38,6 +38,7 @@ def process_file(
     chunk_size: Optional[int] = None,
     chunk_overlap: Optional[int] = None,
     rolling_summary: Optional[bool] = False,
+    num_pairs_per_chunk: Optional[int] = None,
 ) -> str:
     """Process a file to generate content
     
@@ -48,8 +49,13 @@ def process_file(
         api_base: VLLM API base URL
         model: Model to use
         content_type: Type of content to generate (qa, summary, cot)
-        num_pairs: Target number of QA pairs to generate
-        threshold: Quality threshold for filtering (1-10)
+        num_pairs: Target number of QA pairs to generate (total per document)
+        num_pairs_per_chunk: Number of QA pairs per chunk (takes precedence over num_pairs)
+        verbose: Show detailed output
+        provider: LLM provider to use
+        chunk_size: Size of text chunks
+        chunk_overlap: Overlap between chunks
+        rolling_summary: Use rolling summary for long documents
     
     Returns:
         Path to the output file
@@ -89,15 +95,17 @@ def process_file(
         generator = QAGenerator(client, config_path)
 
         # Get num_pairs from args or config
-        if num_pairs is None:
+        if num_pairs is None and num_pairs_per_chunk is None:
             config = client.config
             generation_config = get_generation_config(config)
             num_pairs = generation_config.get("num_pairs", 25)
+            num_pairs_per_chunk = generation_config.get("num_pairs_per_chunk")
         
         # Process document
         result = generator.process_documents(
             documents,
-            num_pairs=num_pairs,
+            num_pairs=num_pairs if num_pairs is not None else 25,
+            num_pairs_per_chunk=num_pairs_per_chunk,
             verbose=verbose,
             rolling_summary=rolling_summary
         )

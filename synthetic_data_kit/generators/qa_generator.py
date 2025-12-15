@@ -84,8 +84,19 @@ class QAGenerator:
     def generate_qa_pairs(self, 
                         document_text: str, 
                         summary: str, 
-                        num_pairs: int = 25) -> List[Dict[str, str]]:
-        """Generate QA pairs from the document using batched processing"""
+                        num_pairs: int = 25,
+                        num_pairs_per_chunk: Optional[int] = None) -> List[Dict[str, str]]:
+        """Generate QA pairs from the document using batched processing
+        
+        Args:
+            document_text: The text to generate QA pairs from
+            summary: Summary of the document
+            num_pairs: Total number of QA pairs to generate (used if num_pairs_per_chunk is None)
+            num_pairs_per_chunk: Number of QA pairs to generate per chunk (takes precedence over num_pairs)
+        
+        Returns:
+            List of QA pair dictionaries
+        """
         verbose = os.environ.get('SDK_VERBOSE', 'false').lower() == 'true'
         
         # Get generation config
@@ -101,13 +112,25 @@ class QAGenerator:
             overlap=overlap
         )
         
+        # Determine generation mode and calculate targets
+        if num_pairs_per_chunk is not None:
+            # Per-chunk mode: scale with document size
+            pairs_per_chunk = num_pairs_per_chunk
+            total_target = num_pairs_per_chunk * len(chunks)
+            mode = "per-chunk"
+        else:
+            # Total pairs mode: divide across chunks (original behavior)
+            pairs_per_chunk = max(1, round(num_pairs / len(chunks)))
+            total_target = num_pairs
+            mode = "total"
+        
         if verbose:
             print(f"Generating QA pairs...")
             print(f"Document split into {len(chunks)} chunks")
+            print(f"Mode: {mode} (pairs per chunk: {pairs_per_chunk}, target total: {total_target})")
             print(f"Using batch size of {batch_size}")
         
         all_qa_pairs = []
-        pairs_per_chunk = max(1, round(num_pairs / len(chunks)))
         
         # Get QA generation prompt template
         qa_prompt_template = get_prompt(self.config, "qa_generation")
@@ -151,9 +174,9 @@ class QAGenerator:
         # Process in batches
         for batch_start in range(0, len(chunks), batch_size):
             # Check if we've already generated enough pairs
-            if len(all_qa_pairs) >= num_pairs:
+            if len(all_qa_pairs) >= total_target:
                 if verbose:
-                    print(f"Reached target of {num_pairs} pairs. Stopping processing.")
+                    print(f"Reached target of {total_target} pairs. Stopping processing.")
                 break
                 
             batch_end = min(batch_start + batch_size, len(chunks))
@@ -180,25 +203,25 @@ class QAGenerator:
                 # Process each response in the batch
                 for j, response in enumerate(batch_responses):
                     # Check if we've reached the target before processing more
-                    if len(all_qa_pairs) >= num_pairs:
+                    if len(all_qa_pairs) >= total_target:
                         if verbose:
-                            print(f"  Reached target of {num_pairs} pairs. Stopping batch processing.")
+                            print(f"  Reached target of {total_target} pairs. Stopping batch processing.")
                         break
                         
                     chunk_index = batch_start + j
                     chunk_pairs = parse_qa_pairs(response)
                     
                     # Only add pairs up to the target limit
-                    remaining_pairs = num_pairs - len(all_qa_pairs)
+                    remaining_pairs = total_target - len(all_qa_pairs)
                     if remaining_pairs > 0:
                         pairs_to_add = chunk_pairs[:remaining_pairs]
                         all_qa_pairs.extend(pairs_to_add)
                         
                         if verbose:
-                            print(f"  Generated {len(pairs_to_add)} pairs from chunk {chunk_index+1} (total: {len(all_qa_pairs)}/{num_pairs})")
+                            print(f"  Generated {len(pairs_to_add)} pairs from chunk {chunk_index+1} (total: {len(all_qa_pairs)}/{total_target})")
                     
                     # Break if we've reached the target
-                    if len(all_qa_pairs) >= num_pairs:
+                    if len(all_qa_pairs) >= total_target:
                         break
                 
                 # Update progress bar if in verbose mode
@@ -206,7 +229,7 @@ class QAGenerator:
                     progress_ctx.update(generate_task, advance=current_batch_size)
                 
                 # Break outer loop if we've reached the target
-                if len(all_qa_pairs) >= num_pairs:
+                if len(all_qa_pairs) >= total_target:
                     break
                 
             except Exception as e:
@@ -227,7 +250,7 @@ class QAGenerator:
             print("Batch processing complete.")
         
         # Always print summary information, even in non-verbose mode
-        print(f"Generated {len(all_qa_pairs)} QA pairs total (requested: {num_pairs})")
+        print(f"Generated {len(all_qa_pairs)} QA pairs total (target: {total_target}, mode: {mode})")
         return all_qa_pairs
     
     def rate_qa_pairs(self, 
@@ -321,9 +344,21 @@ class QAGenerator:
     def process_documents(self,
                         documents: List[Dict[str, Any]],
                         num_pairs: int = 25,
+                        num_pairs_per_chunk: Optional[int] = None,
                         verbose: bool = False,
                         rolling_summary: Optional[bool] = False) -> Dict[str, Any]:
-        """Process a list of documents to generate QA pairs without rating"""
+        """Process a list of documents to generate QA pairs without rating
+        
+        Args:
+            documents: List of document dictionaries with 'text' field
+            num_pairs: Total number of QA pairs to generate (used if num_pairs_per_chunk is None)
+            num_pairs_per_chunk: Number of QA pairs per chunk (takes precedence over num_pairs)
+            verbose: Whether to show detailed output
+            rolling_summary: Whether to use rolling summary for long documents
+        
+        Returns:
+            Dictionary with summary and qa_pairs
+        """
         # Set the verbose environment variable
         if verbose:
             os.environ['SDK_VERBOSE'] = 'true'
@@ -337,7 +372,7 @@ class QAGenerator:
         summary = self.generate_summary(full_text, rolling_summary=rolling_summary)
 
         # Generate QA pairs
-        qa_pairs = self.generate_qa_pairs(full_text, summary, num_pairs=num_pairs)
+        qa_pairs = self.generate_qa_pairs(full_text, summary, num_pairs=num_pairs, num_pairs_per_chunk=num_pairs_per_chunk)
 
         all_qa_pairs.extend(qa_pairs)
 

@@ -219,6 +219,7 @@ def process_directory_create(
     model: Optional[str] = None,
     content_type: str = "qa",
     num_pairs: Optional[int] = None,
+    num_pairs_per_chunk: Optional[int] = None,
     verbose: bool = False,
     provider: Optional[str] = None,
     chunk_size: Optional[int] = None,
@@ -233,9 +234,12 @@ def process_directory_create(
         api_base: API base URL
         model: Model to use
         content_type: Type of content to generate (qa, summary, cot, cot-enhance)
-        num_pairs: Target number of QA pairs or examples
+        num_pairs: Target number of QA pairs or examples (total per document)
+        num_pairs_per_chunk: Number of QA pairs per chunk (takes precedence over num_pairs)
         verbose: Show detailed progress
         provider: LLM provider to use
+        chunk_size: Size of text chunks
+        chunk_overlap: Overlap between chunks
     
     Returns:
         Dictionary with processing results
@@ -310,7 +314,8 @@ def process_directory_create(
                     verbose,
                     provider=provider,
                     chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap
+                    chunk_overlap=chunk_overlap,
+                    num_pairs_per_chunk=num_pairs_per_chunk
                 )
                 
                 # Record success

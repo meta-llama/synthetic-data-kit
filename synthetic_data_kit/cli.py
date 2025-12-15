@@ -290,7 +290,10 @@ def create(
         None, "--model", "-m", help="Model to use"
     ),
     num_pairs: Optional[int] = typer.Option(
-        None, "--num-pairs", "-n", help="Target number of QA pairs or CoT examples to generate"
+        None, "--num-pairs", "-n", help="Target number of QA pairs or CoT examples to generate (total per document)"
+    ),
+    num_pairs_per_chunk: Optional[int] = typer.Option(
+        None, "--num-pairs-per-chunk", help="Number of QA pairs to generate per chunk (scales with document size, takes precedence over --num-pairs)"
     ),
     chunk_size: Optional[int] = typer.Option(
         None, "--chunk-size", help="Size of text chunks for processing large documents (default: 4000)"
@@ -313,9 +316,11 @@ def create(
     - Directory: synthetic-data-kit create ./processed-text/ --type qa
     
     Content types:
-    - qa: Generate question-answer pairs from .txt files (use --num-pairs to specify how many)
+    - qa: Generate question-answer pairs from .txt files
+      Use --num-pairs for total pairs per document OR --num-pairs-per-chunk to scale with document size
     - summary: Generate summaries from .txt files
-    - cot: Generate Chain of Thought reasoning examples from .txt files (use --num-pairs to specify how many)
+    - cot: Generate Chain of Thought reasoning examples from .txt files
+      Use --num-pairs for total examples OR --num-pairs-per-chunk to scale with document size
     - multimodal-qa: Generate question-answer pairs from .lance files (use --num-pairs to specify how many)
     - cot-enhance: Enhance existing conversations with Chain of Thought reasoning from .json files
       (use --num-pairs to limit the number of conversations to enhance, default is to enhance all)
@@ -411,6 +416,7 @@ def create(
                 model=model,
                 content_type=content_type,
                 num_pairs=num_pairs,
+                num_pairs_per_chunk=num_pairs_per_chunk,
                 verbose=verbose,
                 provider=provider,
                 chunk_size=chunk_size,
@@ -441,7 +447,8 @@ def create(
                     verbose,
                     provider=provider,
                     chunk_size=chunk_size,
-                    chunk_overlap=chunk_overlap
+                    chunk_overlap=chunk_overlap,
+                    num_pairs_per_chunk=num_pairs_per_chunk
                 )
             if output_path:
                 console.print(f"✅ Content saved to [bold]{output_path}[/bold]", style="green")
