@@ -28,15 +28,18 @@ def parse_qa_pairs(text: str) -> List[Dict[str, str]]:
             cleaned_text = re.sub(r'(\n\s*|\r\s*)', ' ', json_text)  # Remove newlines and extra spaces
             cleaned_text = re.sub(r',(\s*\}|\s*\])', r'\1', cleaned_text)  # Remove trailing commas
             
-            try:
-                pairs = json.loads(cleaned_text)
-                if verbose:
-                    print(f"Successfully parsed {len(pairs)} QA pairs")
-                return pairs
-            except json.JSONDecodeError as e:
-                if verbose:
-                    print(f"Direct JSON parsing failed: {e}")
-                    print(f"Attempted to parse: {cleaned_text[:200]}...")
+            # Parse the text as it is first: the trailing-comma regex above also matches inside string values
+            # (for example "[1, 2, 3,]"), so the cleaned copy is only a fallback for output that is not valid JSON.
+            for attempt in (json_text, cleaned_text):
+                try:
+                    pairs = json.loads(attempt)
+                    if verbose:
+                        print(f"Successfully parsed {len(pairs)} QA pairs")
+                    return pairs
+                except json.JSONDecodeError as e:
+                    if verbose:
+                        print(f"Direct JSON parsing failed: {e}")
+                        print(f"Attempted to parse: {attempt[:200]}...")
     except Exception as e:
         if verbose:
             print(f"Error during JSON extraction: {e}")
