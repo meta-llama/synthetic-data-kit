@@ -84,3 +84,21 @@ def test_convert_to_conversation_format():
 
     # Check second conversation
     assert conversations[1][1]["content"] == "Why use synthetic data?"
+
+
+@pytest.mark.unit
+def test_parse_qa_pairs_keeps_commas_inside_strings():
+    """Valid JSON must not be rewritten: a comma before ] or } inside a string value is content."""
+    import json
+
+    original = [{"question": "Is [1, 2, 3,] valid in Python?", "answer": "Yes. [1, 2, 3,] is valid."}]
+
+    assert llm_processing.parse_qa_pairs(json.dumps(original)) == original
+
+
+@pytest.mark.unit
+def test_parse_qa_pairs_still_removes_real_trailing_commas():
+    """Output that is not valid JSON because of a trailing comma is still repaired."""
+    text = '[{"question": "Q?", "answer": "A.",},]'
+
+    assert llm_processing.parse_qa_pairs(text) == [{"question": "Q?", "answer": "A."}]
