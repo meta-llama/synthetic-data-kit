@@ -281,8 +281,30 @@ def curate_qa_pairs(
     print(f"Retained {total_passed} pairs (threshold: {threshold})")
     print(f"Average score: {metrics['avg_score']}")
     
-    # Convert to conversation format
-    conversations = convert_to_conversation_format(filtered_pairs)
+    # The judge answers with question, answer and rating only, so a CoT example comes back without its reasoning.
+    # Put the reasoning of the original example back (same question and answer, else same question).
+    if is_cot_format:
+        reasoning_by_pair = {(p["question"], p["answer"]): p["reasoning"] for p in qa_pairs}
+        reasoning_by_question = {p["question"]: p["reasoning"] for p in qa_pairs}
+        for pair in filtered_pairs:
+            if not pair.get("reasoning"):
+                pair["reasoning"] = reasoning_by_pair.get(
+                    (pair.get("question"), pair.get("answer")),
+                    reasoning_by_question.get(pair.get("question"), ""),
+                )
+
+    # Convert to conversation format (CoT examples keep their reasoning, as in the create step)
+    if is_cot_format:
+        conversations = [
+            [
+                {"role": "system", "content": "You are a helpful assistant that provides detailed explanations."},
+                {"role": "user", "content": pair.get("question", "")},
+                {"role": "assistant", "content": f"Let me think through this step by step:\n\n{pair.get('reasoning', '')}\n\nSo the answer is: {pair.get('answer', '')}"},
+            ]
+            for pair in filtered_pairs
+        ]
+    else:
+        conversations = convert_to_conversation_format(filtered_pairs)
     
     # Create result with filtered pairs in the appropriate format
     if is_cot_format:
