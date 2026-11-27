@@ -64,6 +64,19 @@ def parse_qa_pairs(text: str) -> List[Dict[str, str]]:
     
     return pairs
 
+def _contains_loadable_json(content: str) -> bool:
+    """True when the outermost {...} or [...] span of the text loads as JSON without any rewriting."""
+    for opener, closer in (('{', '}'), ('[', ']')):
+        if opener in content and closer in content:
+            span = content[content.find(opener):content.rfind(closer) + 1]
+            try:
+                json.loads(re.sub(r'\s*\n\s*', ' ', span))
+                return True
+            except json.JSONDecodeError:
+                pass
+    return False
+
+
 def parse_ratings(text: str, original_items: List[Dict[str, str]] = None) -> List[Dict[str, Any]]:
     """Parse rated items from LLM output
     
@@ -95,8 +108,10 @@ def parse_ratings(text: str, original_items: List[Dict[str, str]] = None) -> Lis
         # Look for standard JSON start/end markers
         json_content = text.strip()
         
-        # Try to normalize escape sequences
-        json_content = json_content.replace('\\n', '\n').replace('\\r', '\r').replace('\\t', '\t')
+        # Try to normalize escape sequences, but only when the text does not parse as it is: inside a valid JSON
+        # string, \n, \r and \t are escapes, and real control characters make json.loads reject the string.
+        if not _contains_loadable_json(json_content):
+            json_content = json_content.replace('\\n', '\n').replace('\\r', '\r').replace('\\t', '\t')
         
         # Check if we have a JSON object
         if '{' in json_content and '}' in json_content:

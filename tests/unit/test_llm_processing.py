@@ -84,3 +84,25 @@ def test_convert_to_conversation_format():
 
     # Check second conversation
     assert conversations[1][1]["content"] == "Why use synthetic data?"
+
+
+@pytest.mark.unit
+def test_parse_ratings_keeps_escaped_whitespace_inside_strings():
+    """\\n, \\t and \\theta inside valid JSON strings are escapes: every rated item must survive."""
+    import json
+
+    batch = [
+        {"question": "Who wrote Hamlet?", "answer": "Shakespeare", "rating": 9},
+        {"question": "Angle?", "answer": "Use \\theta and \\nabla", "rating": 9},
+        {"question": "Code?", "answer": "a:\n    b\tc", "rating": 8},
+    ]
+
+    assert llm_processing.parse_ratings(json.dumps(batch, indent=2)) == batch
+
+
+@pytest.mark.unit
+def test_parse_ratings_still_unescapes_literal_newlines_outside_strings():
+    """A response whose line breaks arrive as the two characters backslash and n is still parsed."""
+    text = '[\\n  {"question": "Q?", "answer": "A.", "rating": 7}\\n]'
+
+    assert llm_processing.parse_ratings(text) == [{"question": "Q?", "answer": "A.", "rating": 7}]
